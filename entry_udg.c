@@ -44,6 +44,7 @@ int entry(int argc, char **argv) {
 		if (is_key_down('W')) {
 			input_axis.y += 1.0;
 		}
+        input_axis = v2_normalize(input_axis);
 
 		player_pos = v2_add(player_pos, v2_mulf(input_axis, input_speed * delta));
 		
