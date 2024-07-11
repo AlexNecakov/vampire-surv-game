@@ -13,6 +13,8 @@ int entry(int argc, char **argv) {
 
 	Vector2 player_pos = v2(0,0);
 	const float32 input_speed = 1.0;
+    float64 seconds_counter = 0.0;
+    s32 frame_count = 0;
 
     float64 last_time = os_get_current_time_in_seconds();
 
@@ -50,6 +52,13 @@ int entry(int argc, char **argv) {
 		draw_image_xform(player, xform, v2(.5f, .5f), COLOR_WHITE);
 		
 		gfx_update();
+        seconds_counter += delta;
+        frame_count+=1;
+        if(seconds_counter > 1.0){
+            log("fps: %i", frame_count );
+            frame_count = 0;
+            seconds_counter = 0.0;
+        }
 	}
 
 	return 0;
