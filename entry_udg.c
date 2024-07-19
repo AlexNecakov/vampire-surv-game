@@ -1,19 +1,65 @@
+float sin_breathe(float time, float rate) {
+	return (sin(time * rate) + 1.0) / 2.0;
+}
+
+bool almost_equals(float a, float b, float epsilon) {
+ return fabs(a - b) <= epsilon;
+}
+
+bool animate_f32_to_target(float* value, float target, float delta_t, float rate) {
+	*value += (target - *value) * (1.0 - pow(2.0f, -rate * delta_t));
+	if (almost_equals(*value, target, 0.001f))
+	{
+		*value = target;
+		return true; // reached
+	}
+	return false;
+}
+
+void animate_v2_to_target(Vector2* value, Vector2 target, float delta_t, float rate) {
+	animate_f32_to_target(&(value->x), target.x, delta_t, rate);
+	animate_f32_to_target(&(value->y), target.y, delta_t, rate);
+}
+
+Range2f quad_to_range(Draw_Quad quad) {
+	return (Range2f){quad.bottom_left, quad.top_right};
+}
+
+typedef struct Sprite {
+    Gfx_Image* image;
+} Sprite;
+
+typedef enum SpriteID {
+    SPRITE_nil,
+    SPRITE_player,
+    SPRITE_spider,
+    SPRITE_MAX,
+} SpriteID;
+Sprite sprites[SPRITE_MAX];
+Sprite* get_sprite(SpriteID id){
+    if (id >= 0 && id < SPRITE_MAX){
+        return &sprites[id];
+    }
+    return &sprites[0];
+}
+Vector2 get_sprite_size(Sprite* sprite) {
+	return (Vector2) { sprite->image->width, sprite->image->height };
+}
+
 typedef enum EntityArchetype{
     arch_nil = 0,
     arch_player = 1,
     arch_monster = 2,
-} Archetype;
+    ARCH_MAX,
+} EntityArchetype;
 
 typedef struct Entity{
     bool is_valid;
-    Archetype arch;
+    EntityArchetype arch;
     Vector2 pos;
-    
     bool render_sprite;
-    Vector2 size;
-    Gfx_Image* sprite;
+    SpriteID sprite_id;
 } Entity;
-
 #define MAX_ENTITY_COUNT 1024
 
 typedef struct World{
@@ -41,14 +87,12 @@ void entity_destroy(Entity* entity){
 
 void setup_player(Entity* en) {
     en->arch = arch_player;
-    en->sprite = load_image_from_disk(fixed_string("asesprite\\dude.png"), get_heap_allocator());
-    en->size = (Vector2){en->sprite->width, en->sprite->height};
+    en->sprite_id = SPRITE_player;
 }
 
 void setup_spider(Entity* en) {
     en->arch = arch_monster;
-    en->sprite = load_image_from_disk(fixed_string("asesprite\\spider.png"), get_heap_allocator());
-    en->size = (Vector2){en->sprite->width, en->sprite->height};
+    en->sprite_id = SPRITE_spider;
 }
 
 int entry(int argc, char **argv) {
@@ -62,9 +106,15 @@ int entry(int argc, char **argv) {
     float32 aspectRatio = (float32)window.width/(float32)window.height; 
     
     world = alloc(get_heap_allocator(), sizeof(World));
+    memset(world, 0, sizeof(World));
 
     float32 spriteSheetWidth = 240.0;
     float32 zoom = window.width/spriteSheetWidth;
+    Vector2 camera_pos = v2(0,0);
+   
+    sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("asesprite\\dude.png"), get_heap_allocator()) };
+    sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("asesprite\\dude.png"), get_heap_allocator()) };
+    sprites[SPRITE_spider] = (Sprite){.image = load_image_from_disk(fixed_string("asesprite\\spider.png"), get_heap_allocator()) };
 
 	Gfx_Font *font = load_font_from_disk(STR("C:/windows/fonts/arial.ttf"), get_heap_allocator());
 	assert(font, "Failed loading arial.ttf, %d", GetLastError());
@@ -89,12 +139,22 @@ int entry(int argc, char **argv) {
     while (!window.should_close) {
 		reset_temporary_storage();
 	
-        draw_frame.projection = m4_make_orthographic_projection(window.width * -0.5, window.width * 0.5, window.height * -0.5, window.height * 0.5, -1, 10);
-        draw_frame.view = m4_make_scale(v3(1.0/zoom, 1.0/zoom, 1.0/zoom));
-
         float64 now = os_get_current_time_in_seconds();
 		float64 delta = now - last_time;
 		last_time = now;	
+        
+        draw_frame.projection = m4_make_orthographic_projection(window.width * -0.5, window.width * 0.5, window.height * -0.5, window.height * 0.5, -1, 10);
+
+        //camera
+        {
+            Vector2 target_pos = player_en->pos;
+            animate_v2_to_target(&camera_pos, target_pos, delta, 15.0);
+
+            draw_frame.view = m4_make_scale(v3(1.0, 1.0, 1.0));
+            draw_frame.view = m4_mul(draw_frame.view, m4_make_translation(v3(camera_pos.x, camera_pos.y, 0)));
+            draw_frame.view = m4_mul(draw_frame.view, m4_make_scale(v3(1.0/zoom, 1.0/zoom, 1.0)));
+        }
+
 
         os_update(); 
 
@@ -133,10 +193,11 @@ int entry(int argc, char **argv) {
                     default:
                         break;
                 }
+                Sprite* sprite = get_sprite(en->sprite_id);
                 Matrix4 xform = m4_scalar(1.0);
                 xform = m4_translate(xform, v3(v2_expand(en->pos), 0));
-                xform = m4_translate(xform, v3(en->size.x * -0.5, 0.0, 0));
-                draw_image_xform(en->sprite, xform, en->size, COLOR_WHITE);
+                xform = m4_translate(xform, v3(get_sprite_size(sprite).x * -0.5, 0.0, 0));
+                draw_image_xform(sprite->image, xform, get_sprite_size(sprite), COLOR_WHITE);
             }
         }
 
