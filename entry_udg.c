@@ -1,11 +1,15 @@
 int entry(int argc, char **argv) {
 	
-	window.title = STR("Untitled Dungeon Game");
+	window.title = STR("The Dark");
 	window.scaled_width = 1280; // We need to set the scaled size if we want to handle system scaling (DPI)
 	window.scaled_height = 720; 
     window.x = 200;
     window.y = 200;
 	window.clear_color = hex_to_rgba(0x6495EDff);
+    float32 aspectRatio = (float32)window.width/(float32)window.height; 
+
+    float32 spriteSheetWidth = 240.0;
+    float32 zoom = window.width/spriteSheetWidth;
 
 	Gfx_Font *font = load_font_from_disk(STR("C:/windows/fonts/arial.ttf"), get_heap_allocator());
 	assert(font, "Failed loading arial.ttf, %d", GetLastError());
@@ -19,42 +23,29 @@ int entry(int argc, char **argv) {
     assert(playerAtk, "player image didnt load");
 	
     Vector2 player_pos = v2(0,0);
-	const float32 input_speed = 1.0;
+	float32 input_speed = 50.0;
+
     float64 seconds_counter = 0.0;
     s32 frame_count = 0;
-
     float64 last_time = os_get_current_time_in_seconds();
 
     while (!window.should_close) {
 		reset_temporary_storage();
 	
+        draw_frame.projection = m4_make_orthographic_projection(window.width * -0.5, window.width * 0.5, window.height * -0.5, window.height * 0.5, -1, 10);
+        draw_frame.view = m4_make_scale(v3(1.0/zoom, 1.0/zoom, 1.0/zoom));
+
         float64 now = os_get_current_time_in_seconds();
 		float64 delta = now - last_time;
 		last_time = now;	
 
         os_update(); 
-	
-        float64 gridSize = 0.5;
-        float64 xOffset = 0;
-        float64 yOffset = 1;
-        bool startBlk = false;
-        for (int i = -10; i < 10; i++){
-            for(int j = 10; j > -10; j--){
-                draw_rect(v2(i*gridSize - xOffset, j*gridSize ), v2(gridSize, gridSize), COLOR_PINK);
-                if((startBlk+j)%2){
-                    draw_rect(v2(i*gridSize - xOffset, j*gridSize ), v2(gridSize, gridSize), COLOR_GREEN);
-                }
-            }
-            startBlk = !startBlk;
-        }
-    
+
+        Vector2 input_axis = v2(0, 0);
+
         if (is_key_just_pressed(KEY_ESCAPE)){
             window.should_close = true;
         }
-
-        Matrix4 xform = m4_scalar(1.0);
-        Vector2 input_axis = v2(0, 0);
-
         if (is_key_down(KEY_SPACEBAR)) {
             log("attack!");	
         }	
@@ -75,8 +66,11 @@ int entry(int argc, char **argv) {
         
         player_pos = v2_add(player_pos, v2_mulf(input_axis, input_speed * delta ));
 
+        Vector2 size = v2(player->width, player->height);
+        Matrix4 xform = m4_scalar(1.0);
         xform = m4_translate(xform, v3(v2_expand(player_pos), 0));
-        draw_image_xform(player, xform, v2(.5f, .5f), COLOR_WHITE);
+        xform = m4_translate(xform, v3(size.x * -0.5, 0.0, 0));
+        draw_image_xform(player, xform, v2(player->width, player->height), COLOR_WHITE);
         
 		gfx_update();
         
