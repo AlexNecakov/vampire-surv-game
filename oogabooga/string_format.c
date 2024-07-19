@@ -83,6 +83,13 @@ u64 format_string_to_buffer(char* buffer, u64 count, const char* fmt, va_list ar
     
     return bufp - buffer;
 }
+u64 format_string_to_buffer_va(char* buffer, u64 count, const char* fmt, ...) {
+	va_list args;
+	va_start(args, fmt);
+	u64 r = format_string_to_buffer(buffer, count, fmt, args);
+	va_end(args);
+	return r;
+}
 string sprint_null_terminated_string_va_list_to_buffer(const char *fmt, va_list args, void* buffer, u64 buffer_size) {
     u64 formatted_length = format_string_to_buffer((char*)buffer, buffer_size, fmt, args);
     
@@ -222,16 +229,6 @@ typedef void(*Logger_Proc)(Log_Level level, string s);
 #define log_error(...)   LOG_BASE(LOG_ERROR,   __VA_ARGS__)
 
 #define log(...) LOG_BASE(LOG_INFO, __VA_ARGS__)
-
-void default_logger(Log_Level level, string s) {
-	switch (level) {
-		case LOG_VERBOSE: print("[VERBOSE]: %s\n", s); break;
-		case LOG_INFO:    print("[INFO]:    %s\n", s); break;
-		case LOG_WARNING: print("[WARNING]: %s\n", s); break;
-		case LOG_ERROR:   print("[ERROR]:   %s\n", s); break;
-		case LOG_LEVEL_COUNT: break;
-	}
-}
 
 
 typedef struct String_Builder {

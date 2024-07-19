@@ -32,6 +32,7 @@
 
 #define _INTSIZEOF(n)         ((sizeof(n) + sizeof(int) - 1) & ~(sizeof(int) - 1))
 
+// #Cleanup we only need vsnprintf
 typedef void* (__cdecl *Crt_Memcpy_Proc)    (void*, const void*, size_t);
 typedef int   (__cdecl *Crt_Memcmp_Proc)    (const void*, const void*, size_t);
 typedef void* (__cdecl *Crt_Memset_Proc)    (void*, int, size_t);
@@ -45,6 +46,7 @@ typedef struct Os_Info {
 	
 	Dynamic_Library_Handle crt;
 	
+	// #Cleanup we only need vsnprintf
 	Crt_Memcpy_Proc    crt_memcpy;
 	Crt_Memcmp_Proc    crt_memcmp;
 	Crt_Memset_Proc    crt_memset;
@@ -99,6 +101,7 @@ typedef struct Thread {
 
 ///
 // Thread primitive
+// #Cleanup this shouldn't be allocating just for the pointer!! Just do os_thread_init(*)
 Thread* os_make_thread(Thread_Proc proc, Allocator allocator);
 void os_destroy_thread(Thread *t);
 void os_start_thread(Thread* t);
@@ -144,6 +147,7 @@ void os_high_precision_sleep(f64 ms);
 // Time
 ///
 
+// #Cleanup getting the cycle count is an x86 intrinsic so this should be in cpu.c
 u64 os_get_current_cycle_count();
 float64 os_get_current_time_in_seconds();
 
@@ -187,6 +191,11 @@ bool os_file_write_string(File f, string s);
 bool os_file_write_bytes(File f, void *buffer, u64 size_in_bytes);
 
 bool os_file_read(File f, void* buffer, u64 bytes_to_read, u64 *actual_read_bytes);
+
+bool os_file_set_pos(File f, s64 pos_in_bytes);
+s64  os_file_get_pos(File f);
+
+s64 os_file_get_size(File f);
 
 bool os_write_entire_file_handle(File f, string data);
 bool os_write_entire_file_s(string path, string data);
@@ -290,10 +299,28 @@ void fprint_va_list_buffered(File f, const string fmt, va_list args) {
 ///
 // Memory
 ///
-void* os_get_stack_base();
-void* os_get_stack_limit();
+void* 
+os_get_stack_base();
+void* 
+os_get_stack_limit();
 
 
+///
+///
+// Debug
+///
+string *
+os_get_stack_trace(u64 *trace_count, Allocator allocator);
+
+void dump_stack_trace() {
+	u64 count;
+	string *strings = os_get_stack_trace(&count, get_temporary_allocator());
+	
+	for (u64 i = 0; i < count; i++) {
+		string s = strings[i];
+		print("\n%s", s);
+	}
+}
 
 ///
 ///
@@ -320,15 +347,5 @@ typedef struct Os_Window {
 	
 } Os_Window;
 Os_Window window;
-
-
-
-
-///
-///
-// Window input
-///
-
-
 
 void os_update();

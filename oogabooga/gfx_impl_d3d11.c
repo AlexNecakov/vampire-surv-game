@@ -6,6 +6,7 @@
 
 #endif
 
+// #Cleanup apparently there are C macros for these (COBJMACROS)
 #define D3D11Release(x) x->lpVtbl->Release(x)
 #define VTABLE(proc, ...) FIRST_ARG(__VA_ARGS__)->lpVtbl->proc(__VA_ARGS__)
 
@@ -15,7 +16,6 @@ string temp_win32_null_terminated_wide_to_fixed_utf8(const u16 *utf16);
 
 typedef struct alignat(16) D3D11_Vertex {
 	
-
 	Vector4 color;
 	Vector4 position;
 	Vector2 uv;
@@ -58,6 +58,9 @@ ID3D11InputLayout  *d3d11_image_vertex_layout = 0;
 ID3D11Buffer *d3d11_quad_vbo = 0;
 u32 d3d11_quad_vbo_size = 0;
 void *d3d11_staging_quad_buffer = 0;
+
+Draw_Quad *sort_quad_buffer = 0;
+u64 sort_quad_buffer_size = 0;
 
 const char* d3d11_stringify_category(D3D11_MESSAGE_CATEGORY category) {
     switch (category) {
@@ -112,28 +115,30 @@ void CALLBACK d3d11_debug_callback(D3D11_MESSAGE_CATEGORY category, D3D11_MESSAG
 
 #define win32_check_hr(hr) win32_check_hr_impl(hr, __LINE__, __FILE__);
 void win32_check_hr_impl(HRESULT hr, u32 line, const char* file_name) {
-    if (FAILED(hr)) {
-        LPVOID errorMsg;
+    if (hr != S_OK) {
+    
+    	LPVOID errorMsg;
         DWORD dwFlags = FORMAT_MESSAGE_ALLOCATE_BUFFER | 
                         FORMAT_MESSAGE_FROM_SYSTEM | 
                         FORMAT_MESSAGE_IGNORE_INSERTS;
 
-        DWORD messageLength = FormatMessage(
+        DWORD messageLength = FormatMessageW(
             dwFlags,
             NULL,
             hr,
             MAKELANGID(LANG_ENGLISH, SUBLANG_DEFAULT),
-            (LPTSTR) &errorMsg,
+            (LPWSTR) &errorMsg,
             0,
             NULL );
 
         if (messageLength > 0) {
-            MessageBox(NULL, (LPCTSTR)errorMsg, TEXT("Error"), MB_OK | MB_ICONERROR);
+            MessageBoxW(NULL, (LPWSTR)errorMsg, L"Error", MB_OK | MB_ICONERROR);
         } else {
-            MessageBox(NULL, TEXT("Failed to retrieve error message."), TEXT("Error"), MB_OK | MB_ICONERROR);
+            MessageBoxW(NULL, L"Failed to retrieve error message.", L"Error", MB_OK | MB_ICONERROR);
         }
+    
 
-        panic("win32 hr failed in file %cs on line %d", file_name, line);
+        panic("win32 hr failed in file %cs on line %d, hr was %d", file_name, line, hr);
     }
 }
 
@@ -174,8 +179,8 @@ void d3d11_update_swapchain() {
 		
 		
 		// Obtain DXGI factory from device
-		IDXGIDevice *dxgi_device;
-		hr = VTABLE(QueryInterface, d3d11_device, &IID_IDXGIDevice, cast(void**)&dxgi_device);
+		IDXGIDevice *dxgi_device = 0;
+		hr = ID3D11Device_QueryInterface(d3d11_device, &IID_IDXGIDevice, cast(void**)&dxgi_device);
 		win32_check_hr(hr);
 		
 		IDXGIAdapter *adapter;
@@ -270,22 +275,38 @@ void gfx_init() {
 	};
 	s64 num_feature_levels = sizeof(feature_levels)/sizeof(D3D_FEATURE_LEVEL);
 	
-	for (s64 i = 0; i < num_drivers; i++) {
-		d3d11_driver_type = driver_types[i]; 
-		
-		hr = D3D11CreateDevice(0, d3d11_driver_type, 0, flags, feature_levels, num_feature_levels, D3D11_SDK_VERSION, &d3d11_device, &d3d11_feature_level, &d3d11_context);
-		
-		if (hr == E_INVALIDARG) {
-			// 11_1 not recognized in 11.0
-			hr = D3D11CreateDevice(0, d3d11_driver_type, 0, flags, feature_levels+1, num_feature_levels-1, D3D11_SDK_VERSION, &d3d11_device, &d3d11_feature_level, &d3d11_context);
+	bool debug_failed = false;
+	
+	for (s64 i = 0; i < 2; i++) {
+		for (s64 i = 0; i < num_drivers; i++) {
+			d3d11_driver_type = driver_types[i]; 
+			
+			hr = D3D11CreateDevice(0, d3d11_driver_type, 0, flags, feature_levels, num_feature_levels, D3D11_SDK_VERSION, &d3d11_device, &d3d11_feature_level, &d3d11_context);
+			
+			if (hr == E_INVALIDARG) {
+				// 11_1 not recognized in 11.0
+				hr = D3D11CreateDevice(0, d3d11_driver_type, 0, flags, feature_levels+1, num_feature_levels-1, D3D11_SDK_VERSION, &d3d11_device, &d3d11_feature_level, &d3d11_context);
+			}
+			
+			if (SUCCEEDED(hr)) break;
+			
+			log_verbose("Failed driver type number %d (%d)", i, driver_types[i]);
 		}
-		
-		if (SUCCEEDED(hr)) break;
-		
-		log_verbose("Failed driver type number %d (%d)", i, driver_types[i]);
+		if (SUCCEEDED(hr)) {
+			break;
+		} else {
+			debug_failed = true;
+			flags &= ~(D3D11_CREATE_DEVICE_DEBUG);
+			
+		}
 	}
 	
 	win32_check_hr(hr);
+	
+	if (debug_failed) {
+		log_error("We could not init D3D11 with DEBUG flag. This is likely because you have not enabled \"Graphics Tools\" in windows settings. https://github.com/microsoft/DirectX-Graphics-Samples/issues/447#issuecomment-415611443");
+	}
+	
 	assert(d3d11_device != 0, "D3D11CreateDevice failed");
 
 #if CONFIGURATION == DEBUG
@@ -545,7 +566,7 @@ void d3d11_process_draw_frame() {
 	
 	///
 	// Maybe grow quad vbo
-	u32 required_size = sizeof(D3D11_Vertex) * draw_frame.num_blocks*QUADS_PER_BLOCK*6;
+	u32 required_size = sizeof(D3D11_Vertex) * allocated_quads*6;
 
 	if (required_size > d3d11_quad_vbo_size) {
 		if (d3d11_quad_vbo) {
@@ -567,7 +588,7 @@ void d3d11_process_draw_frame() {
 		log_verbose("Grew quad vbo to %d bytes.", d3d11_quad_vbo_size);
 	}
 
-	if (draw_frame.num_blocks > 0) {
+	if (draw_frame.num_quads > 0) {
 		///
 		// Render geometry from into vbo quad list
 	    
@@ -580,140 +601,146 @@ void d3d11_process_draw_frame() {
 		D3D11_Vertex* head = (D3D11_Vertex*)d3d11_staging_quad_buffer;
 		D3D11_Vertex* pointer = head;
 		u64 number_of_rendered_quads = 0;
-		Draw_Quad_Block *block = &first_block;
 		
-		tm_scope_cycles("Quad processing") {
-			u64 block_index = 0;
-			while (block != 0 && block->num_quads > 0 && block_index < draw_frame.num_blocks) tm_scope_cycles("Quad block") {
-				for (u64 i = 0; i < block->num_quads; i++)  {
+		tm_scope("Quad processing") {
+			if (draw_frame.enable_z_sorting) tm_scope("Z sorting") {
+				if (!sort_quad_buffer || (sort_quad_buffer_size < allocated_quads*sizeof(Draw_Quad))) {
+					// #Memory #Heapalloc
+					if (sort_quad_buffer) dealloc(get_heap_allocator(), sort_quad_buffer);
+					sort_quad_buffer = alloc(get_heap_allocator(), allocated_quads*sizeof(Draw_Quad));
+					sort_quad_buffer_size = allocated_quads*sizeof(Draw_Quad);
+				}
+				radix_sort(quad_buffer, sort_quad_buffer, draw_frame.num_quads, sizeof(Draw_Quad), offsetof(Draw_Quad, z), MAX_Z_BITS);
+			}
+		
+			for (u64 i = 0; i < draw_frame.num_quads; i++)  {
+				
+				Draw_Quad *q = &quad_buffer[i];
+				
+				assert(q->z <= MAX_Z, "Z is too high. Z is %d, Max is %d.", q->z, MAX_Z);
+				assert(q->z >= (-MAX_Z+1), "Z is too low. Z is %d, Min is %d.", q->z, -MAX_Z+1);
+				
+				s8 texture_index = -1;
+				
+				if (q->image) {
 					
-					Draw_Quad *q = &block->quad_buffer[i];
-					
-					s8 texture_index = -1;
-					
-					if (q->image) {
-						
-						if (last_texture == q->image->gfx_handle) {
-							texture_index = last_texture_index;
-						} else {
-							// First look if texture is already bound
-							for (u64 j = 0; j < num_textures; j++) {
-								if (textures[j] == q->image->gfx_handle) {
-									texture_index = (s8)j;
-									break;
-								}
-							}
-							// Otherwise use a new slot
-							if (texture_index <= -1) {
-								if (num_textures >= 32) {
-									// If max textures reached, make a draw call and start over
-									D3D11_MAPPED_SUBRESOURCE buffer_mapping;
-									VTABLE(Map, d3d11_context, (ID3D11Resource*)d3d11_quad_vbo, 0, D3D11_MAP_WRITE_DISCARD, 0, &buffer_mapping);
-									memcpy(buffer_mapping.pData, d3d11_staging_quad_buffer, number_of_rendered_quads*sizeof(D3D11_Vertex)*6);
-									VTABLE(Unmap, d3d11_context, (ID3D11Resource*)d3d11_quad_vbo, 0);
-									d3d11_draw_call(number_of_rendered_quads, textures, num_textures);
-									head = (D3D11_Vertex*)d3d11_staging_quad_buffer;
-									num_textures = 0;
-									texture_index = 0;
-									number_of_rendered_quads = 0;
-									pointer = head;
-								} else {
-									texture_index = (s8)num_textures;
-									num_textures += 1;
-								}
+					if (last_texture == q->image->gfx_handle) {
+						texture_index = last_texture_index;
+					} else {
+						// First look if texture is already bound
+						for (u64 j = 0; j < num_textures; j++) {
+							if (textures[j] == q->image->gfx_handle) {
+								texture_index = (s8)j;
+								break;
 							}
 						}
-						textures[texture_index] = q->image->gfx_handle;
-						last_texture = q->image->gfx_handle;
-						last_texture_index = texture_index;
+						// Otherwise use a new slot
+						if (texture_index <= -1) {
+							if (num_textures >= 32) {
+								// If max textures reached, make a draw call and start over
+								D3D11_MAPPED_SUBRESOURCE buffer_mapping;
+								VTABLE(Map, d3d11_context, (ID3D11Resource*)d3d11_quad_vbo, 0, D3D11_MAP_WRITE_DISCARD, 0, &buffer_mapping);
+								memcpy(buffer_mapping.pData, d3d11_staging_quad_buffer, number_of_rendered_quads*sizeof(D3D11_Vertex)*6);
+								VTABLE(Unmap, d3d11_context, (ID3D11Resource*)d3d11_quad_vbo, 0);
+								d3d11_draw_call(number_of_rendered_quads, textures, num_textures);
+								head = (D3D11_Vertex*)d3d11_staging_quad_buffer;
+								num_textures = 0;
+								texture_index = 0;
+								number_of_rendered_quads = 0;
+								pointer = head;
+							} else {
+								texture_index = (s8)num_textures;
+								num_textures += 1;
+							}
+						}
 					}
-					
-					if (q->type == QUAD_TYPE_TEXT) {
-						float pixel_width = 2.0/(float)window.width;
-						float pixel_height = 2.0/(float)window.height;
-						
-						q->bottom_left.x  = round(q->bottom_left.x  / pixel_width)  * pixel_width;
-					    q->bottom_left.y  = round(q->bottom_left.y  / pixel_height) * pixel_height;
-					    q->top_left.x     = round(q->top_left.x     / pixel_width)  * pixel_width;
-					    q->top_left.y     = round(q->top_left.y     / pixel_height) * pixel_height;
-					    q->top_right.x    = round(q->top_right.x    / pixel_width)  * pixel_width;
-					    q->top_right.y    = round(q->top_right.y    / pixel_height) * pixel_height;
-					    q->bottom_right.x = round(q->bottom_right.x / pixel_width)  * pixel_width;
-					    q->bottom_right.y = round(q->bottom_right.y / pixel_height) * pixel_height;
-					}
-					
-					// We will write to 6 vertices for the one quad (two tris)
-					 {
-					
-						D3D11_Vertex* BL  = pointer + 0;
-						D3D11_Vertex* TL  = pointer + 1;
-						D3D11_Vertex* TR  = pointer + 2;
-						D3D11_Vertex* BL2 = pointer + 3;
-						D3D11_Vertex* TR2 = pointer + 4;
-						D3D11_Vertex* BR  = pointer + 5;
-						pointer += 6;
-						
-						BL->position = v4(q->bottom_left.x,  q->bottom_left.y,  0, 1);
-						TL->position = v4(q->top_left.x,     q->top_left.y,     0, 1);
-						TR->position = v4(q->top_right.x,    q->top_right.y,    0, 1);
-						BR->position = v4(q->bottom_right.x, q->bottom_right.y, 0, 1);
-						
-						BL->uv = v2(q->uv.x1, q->uv.y1);
-						TL->uv = v2(q->uv.x1, q->uv.y2);
-						TR->uv = v2(q->uv.x2, q->uv.y2);
-						BR->uv = v2(q->uv.x2, q->uv.y1);
-						
-						BL->color = TL->color = TR->color = BR->color = q->color;
-						
-						BL->texture_index=TL->texture_index=TR->texture_index=BR->texture_index = texture_index;
-						BL->type=TL->type=TR->type=BR->type = (u8)q->type;
-						
-						u8 sampler = -1;
-						if (q->image_min_filter == GFX_FILTER_MODE_NEAREST
- 						 		&& q->image_mag_filter == GFX_FILTER_MODE_NEAREST)
- 						 	sampler = 0;
-						if (q->image_min_filter == GFX_FILTER_MODE_LINEAR
- 						 		&& q->image_mag_filter == GFX_FILTER_MODE_LINEAR)
- 						 	sampler = 1;
-						if (q->image_min_filter == GFX_FILTER_MODE_LINEAR
- 						 		&& q->image_mag_filter == GFX_FILTER_MODE_NEAREST)
- 						 	sampler = 2;
-						if (q->image_min_filter == GFX_FILTER_MODE_NEAREST
- 						 		&& q->image_mag_filter == GFX_FILTER_MODE_LINEAR)
- 						 	sampler = 3;
- 						 	
-						BL->type=TL->type=TR->type=BR->type = (u8)q->type;
-						BL->sampler=TL->sampler=TR->sampler=BR->sampler = (u8)sampler;
-						
-						*BL2 = *BL;
-						*TR2 = *TR;
-						
-						number_of_rendered_quads += 1;
-					}
+					textures[texture_index] = q->image->gfx_handle;
+					last_texture = q->image->gfx_handle;
+					last_texture_index = texture_index;
 				}
 				
-				block_index += 1;
-				block = block->next;
+				if (q->type == QUAD_TYPE_TEXT) {
+					float pixel_width = 2.0/(float)window.width;
+					float pixel_height = 2.0/(float)window.height;
+					
+					q->bottom_left.x  = round(q->bottom_left.x  / pixel_width)  * pixel_width;
+				    q->bottom_left.y  = round(q->bottom_left.y  / pixel_height) * pixel_height;
+				    q->top_left.x     = round(q->top_left.x     / pixel_width)  * pixel_width;
+				    q->top_left.y     = round(q->top_left.y     / pixel_height) * pixel_height;
+				    q->top_right.x    = round(q->top_right.x    / pixel_width)  * pixel_width;
+				    q->top_right.y    = round(q->top_right.y    / pixel_height) * pixel_height;
+				    q->bottom_right.x = round(q->bottom_right.x / pixel_width)  * pixel_width;
+				    q->bottom_right.y = round(q->bottom_right.y / pixel_height) * pixel_height;
+				}
+				
+				// We will write to 6 vertices for the one quad (two tris)
+				 {
+				
+					D3D11_Vertex* BL  = pointer + 0;
+					D3D11_Vertex* TL  = pointer + 1;
+					D3D11_Vertex* TR  = pointer + 2;
+					D3D11_Vertex* BL2 = pointer + 3;
+					D3D11_Vertex* TR2 = pointer + 4;
+					D3D11_Vertex* BR  = pointer + 5;
+					pointer += 6;
+					
+					BL->position = v4(q->bottom_left.x,  q->bottom_left.y,  0, 1);
+					TL->position = v4(q->top_left.x,     q->top_left.y,     0, 1);
+					TR->position = v4(q->top_right.x,    q->top_right.y,    0, 1);
+					BR->position = v4(q->bottom_right.x, q->bottom_right.y, 0, 1);
+					
+					BL->uv = v2(q->uv.x1, q->uv.y1);
+					TL->uv = v2(q->uv.x1, q->uv.y2);
+					TR->uv = v2(q->uv.x2, q->uv.y2);
+					BR->uv = v2(q->uv.x2, q->uv.y1);
+					
+					BL->color = TL->color = TR->color = BR->color = q->color;
+					
+					BL->texture_index=TL->texture_index=TR->texture_index=BR->texture_index = texture_index;
+					BL->type=TL->type=TR->type=BR->type = (u8)q->type;
+					
+					u8 sampler = -1;
+					if (q->image_min_filter == GFX_FILTER_MODE_NEAREST
+						 		&& q->image_mag_filter == GFX_FILTER_MODE_NEAREST)
+						 	sampler = 0;
+					if (q->image_min_filter == GFX_FILTER_MODE_LINEAR
+						 		&& q->image_mag_filter == GFX_FILTER_MODE_LINEAR)
+						 	sampler = 1;
+					if (q->image_min_filter == GFX_FILTER_MODE_LINEAR
+						 		&& q->image_mag_filter == GFX_FILTER_MODE_NEAREST)
+						 	sampler = 2;
+					if (q->image_min_filter == GFX_FILTER_MODE_NEAREST
+						 		&& q->image_mag_filter == GFX_FILTER_MODE_LINEAR)
+						 	sampler = 3;
+						 	
+					BL->type=TL->type=TR->type=BR->type = (u8)q->type;
+					BL->sampler=TL->sampler=TR->sampler=BR->sampler = (u8)sampler;
+					
+					*BL2 = *BL;
+					*TR2 = *TR;
+					
+					number_of_rendered_quads += 1;
+				}
 			}
 		}
 		
-		tm_scope_cycles("Write to gpu") {
+		tm_scope("Write to gpu") {
 		    D3D11_MAPPED_SUBRESOURCE buffer_mapping;
-			tm_scope_cycles("The Map call") {
+			tm_scope("The Map call") {
 				hr = VTABLE(Map, d3d11_context, (ID3D11Resource*)d3d11_quad_vbo, 0, D3D11_MAP_WRITE_DISCARD, 0, &buffer_mapping);
 			win32_check_hr(hr);
 			}
-			tm_scope_cycles("The memcpy") {
+			tm_scope("The memcpy") {
 				memcpy(buffer_mapping.pData, d3d11_staging_quad_buffer, number_of_rendered_quads*sizeof(D3D11_Vertex)*6);
 			}
-			tm_scope_cycles("The Unmap call") {
+			tm_scope("The Unmap call") {
 				VTABLE(Unmap, d3d11_context, (ID3D11Resource*)d3d11_quad_vbo, 0);
 			}
 		}
 		
 		///
 		// Draw call
-		tm_scope_cycles("Draw call") d3d11_draw_call(number_of_rendered_quads, textures, num_textures);
+		tm_scope("Draw call") d3d11_draw_call(number_of_rendered_quads, textures, num_textures);
     }
     
     reset_draw_frame(&draw_frame);
@@ -738,7 +765,9 @@ void gfx_update() {
 
 	d3d11_process_draw_frame();
 
-	VTABLE(Present, d3d11_swap_chain, window.enable_vsync, window.enable_vsync ? 0 : DXGI_PRESENT_ALLOW_TEARING);
+	tm_scope("Present") {
+		VTABLE(Present, d3d11_swap_chain, window.enable_vsync, window.enable_vsync ? 0 : DXGI_PRESENT_ALLOW_TEARING);
+	}
 	
 	
 #if CONFIGURATION == DEBUG
