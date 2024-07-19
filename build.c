@@ -30,7 +30,7 @@ typedef struct Context_Extra {
 
 // #include "oogabooga/examples/text_rendering.c"
 // #include "oogabooga/examples/custom_logger.c"
-// #include "oogabooga/examples/renderer_stress_test.c"
+//#include "oogabooga/examples/renderer_stress_test.c"
 
 // This is where you swap in your own project!
 // #include "entry_yourepicgamename.c"

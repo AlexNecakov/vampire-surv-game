@@ -1,3 +1,18 @@
+typedef enum Global_States {
+    STATE_INPUT = 0,
+    STATE_MOVE,
+    STATE_MOVING,
+    STATE_ATTACK,
+    STATE_INVENTORY,
+    STATE_FLOOR,
+} Global_States;
+
+typedef enum Action_Flags {
+	ACTION_MOVE_UP      = 1<<0, 
+    ACTION_MOVE_DOWN    = 1<<1,
+	ACTION_MOVE_LEFT    = 1<<2,
+	ACTION_MOVE_RIGHT   = 1<<3,
+} Action_Flags;
 
 int entry(int argc, char **argv) {
 	
@@ -20,11 +35,15 @@ int entry(int argc, char **argv) {
     assert(playerAtk, "player image didnt load");
 	
     Vector2 player_pos = v2(0,0);
+    Vector2 input_axis = v2(0, 0);
 	const float32 input_speed = 1.0;
     float64 seconds_counter = 0.0;
     s32 frame_count = 0;
 
     float64 last_time = os_get_current_time_in_seconds();
+
+    Global_States globalState = STATE_INPUT;
+    Action_Flags actionQueue = 0;
 
     while (!window.should_close) {
 		reset_temporary_storage();
@@ -35,6 +54,8 @@ int entry(int argc, char **argv) {
 
         os_update(); 
 	
+        Global_States nextState = globalState;
+        
         float64 gridSize = 0.5;
         float64 xOffset = 0;
         float64 yOffset = 1;
@@ -52,39 +73,79 @@ int entry(int argc, char **argv) {
         if (is_key_just_pressed(KEY_ESCAPE)){
             window.should_close = true;
         }
-		if (is_key_down(KEY_SPACEBAR)) {
-		    log("attack!");	
-        }	
 
-		Vector2 input_axis = v2(0, 0);
-		if (is_key_down('A')) {
-			input_axis.x -= 1.0;
-		}
-		if (is_key_down('D')) {
-			input_axis.x += 1.0;
-		}
-		if (is_key_down('S')) {
-			input_axis.y -= 1.0;
-		}
-		if (is_key_down('W')) {
-			input_axis.y += 1.0;
-		}
-        input_axis = v2_normalize(input_axis);
+        Matrix4 xform = m4_scalar(1.0);
+        
+        switch(globalState){
+            case STATE_INPUT: 
+                if (is_key_down(KEY_SPACEBAR)) {
+                    log("attack!");	
+                }	
+                if (is_key_down('W')) {
+                    actionQueue |= ACTION_MOVE_UP;
+                    nextState = STATE_MOVE;
+                }
+                if (is_key_down('A')) {
+                    actionQueue |= ACTION_MOVE_LEFT;
+                    nextState = STATE_MOVE;
+                }
+                if (is_key_down('D')) {
+                    actionQueue |= ACTION_MOVE_RIGHT;
+                    nextState = STATE_MOVE;
+                }
+                if (is_key_down('S')) {
+                    actionQueue |= ACTION_MOVE_DOWN;
+                    nextState = STATE_MOVE;
+                }
+                break;
+                
+            case STATE_MOVE: 
+                input_axis = (Vector2){0,0};
+                if (actionQueue & ACTION_MOVE_UP) {
+                    input_axis.y += 1.0;
+                    log("up");
+                }
+                if (actionQueue & ACTION_MOVE_LEFT) {
+                    input_axis.x -= 1.0;
+                    log("left");
+                }
+                if (actionQueue & ACTION_MOVE_RIGHT) {
+                    input_axis.x += 1.0;
+                    log("right");
+                }
+                if (actionQueue & ACTION_MOVE_DOWN) {
+                    input_axis.y -= 1.0;
+                    log("down");
+                }
+                input_axis = v2_normalize(input_axis);
+                
+                player_pos = v2_add(player_pos, v2_mulf(input_axis, input_speed * delta ));
+                nextState = STATE_MOVING;
+                actionQueue = 0;
+                break;
+            case STATE_MOVING: 
+                player_pos = v2_add(player_pos, v2_mulf(input_axis, input_speed * delta ));
+                nextState = STATE_MOVING;
+            default:
+                nextState = STATE_INPUT;
+                break;
+        }
 
-		player_pos = v2_add(player_pos, v2_mulf(input_axis, input_speed * delta));
-		
-		Matrix4 xform = m4_scalar(1.0);
-		xform = m4_translate(xform, v3(v2_expand(player_pos), 0));
-		draw_image_xform(player, xform, v2(.5f, .5f), COLOR_WHITE);
-		
+        xform = m4_translate(xform, v3(v2_expand(player_pos), 0));
+        draw_image_xform(player, xform, v2(.5f, .5f), COLOR_WHITE);
+        
 		gfx_update();
+        
         seconds_counter += delta;
         frame_count+=1;
+
         if(seconds_counter > 1.0){
             log("fps: %i", frame_count );
             frame_count = 0;
             seconds_counter = 0.0;
         }
+
+        globalState = nextState;
 	}
 
 	return 0;

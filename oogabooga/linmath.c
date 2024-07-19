@@ -126,6 +126,10 @@ inline Vector2 v2_normalize(Vector2 a) {
     return v2_divf(a, length);
 }
 
+inline bool v2_is_zero(Vector2 a){
+    return ((a.x == 0) && (a.y == 0));
+}
+
 inline float v2_dot_product(Vector2 a, Vector2 b) {
 	return simd_dot_product_float32_64((float*)&a, (float*)&b);
 }
