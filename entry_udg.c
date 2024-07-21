@@ -349,6 +349,7 @@ int entry(int argc, char **argv) {
             input_axis.x += 1.0;
         }
         input_axis = v2_normalize(input_axis);
+        player_en->pos = v2_add(player_en->pos, v2_mulf(input_axis, input_speed * delta ));
         
 
         //:render entities
@@ -356,11 +357,6 @@ int entry(int argc, char **argv) {
             Entity* en = &world->entities[i];
             if (en->is_valid){
                 switch (en->arch){
-                    case arch_player:
-                        en->pos = v2_add(en->pos, v2_mulf(input_axis, input_speed * delta ));
-                        break;
-                    case arch_monster:
-                        break;
                     default:
                         break;
                 }

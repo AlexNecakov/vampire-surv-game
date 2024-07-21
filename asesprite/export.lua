@@ -4,7 +4,7 @@ if not spr then return print('No active sprite') end
 local local_path,title = spr.filename:match("^(.+[/\\])(.-).([^.]*)$")
 
 -- CHANGE this to whatever your local path for the game is
-local export_path = "C:/s/UntitledDungeonGame/res/sprites"
+local export_path = "C:/s/Untitled-Dungeon-Game/res/sprites"
 local_path = export_path
 
 function layer_export()
