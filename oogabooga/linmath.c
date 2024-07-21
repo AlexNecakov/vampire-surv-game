@@ -143,7 +143,6 @@ inline bool v2_is_zero(Vector2 a){
     return ((a.x == 0) && (a.y == 0));
 }
 
-inline float v2_dot_product(LMATH_ALIGN Vector2 a, LMATH_ALIGN Vector2 b) {
 inline float32 v2_average(LMATH_ALIGN Vector2 a) {
 	return (a.x+a.y)/2.0;
 }
