@@ -54,7 +54,7 @@ Range2f quad_to_range(Draw_Quad quad) {
 }
 
 Vector4 bg_box_col = {0, 0, 0, 0.5};
-const int tile_width = 8;
+const int tile_width = 16;
 const float entity_selection_radius = 16.0f;
 const float player_pickup_radius = 20.0f;
 
@@ -218,9 +218,9 @@ int entry(int argc, char **argv) {
     float32 zoom = window.width/spriteSheetWidth;
     Vector2 camera_pos = v2(0,0);
    
-    sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("asesprite\\dude.png"), get_heap_allocator()) };
-    sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("asesprite\\dude.png"), get_heap_allocator()) };
-    sprites[SPRITE_spider] = (Sprite){.image = load_image_from_disk(fixed_string("asesprite\\spider.png"), get_heap_allocator()) };
+    sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\undefined.png"), get_heap_allocator()) };
+    sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\dude.png"), get_heap_allocator()) };
+    sprites[SPRITE_spider] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\spider.png"), get_heap_allocator()) };
 
 	Gfx_Font *font = load_font_from_disk(STR("C:/windows/fonts/arial.ttf"), get_heap_allocator());
 	assert(font, "Failed loading arial.ttf, %d", GetLastError());
@@ -303,7 +303,7 @@ int entry(int argc, char **argv) {
 			for (int x = player_tile_x - tile_radius_x; x < player_tile_x + tile_radius_x; x++) {
 				for (int y = player_tile_y - tile_radius_y; y < player_tile_y + tile_radius_y; y++) {
 					if ((x + (y % 2 == 0) ) % 2 == 0) {
-						Vector4 col = v4(0.1, 0.1, 0.1, 0.1);
+						Vector4 col = v4(0.6, 0.6, 0.6, 0.6);
 						float x_pos = x * tile_width;
 						float y_pos = y * tile_width;
 						draw_rect(v2(x_pos + tile_width * -0.5, y_pos + tile_width * -0.5), v2(tile_width, tile_width), col);
