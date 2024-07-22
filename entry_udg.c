@@ -263,6 +263,7 @@ int entry(int argc, char **argv) {
 
     float64 seconds_counter = 0.0;
     s32 frame_count = 0;
+    s32 last_fps = 0;
     float64 last_time = os_get_current_time_in_seconds();
 
     //:loop
@@ -430,14 +431,15 @@ int entry(int argc, char **argv) {
                     //:fps
                     seconds_counter += delta;
                     frame_count+=1;
-                    string text = STR("fps: %i");
-                    text = sprint(temp, text, frame_count);
-                    draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
                     if(seconds_counter > 1.0){
-                        log("fps: %i", frame_count );
+                        last_fps = frame_count;
+                        log("fps: %i", last_fps );
                         frame_count = 0;
                         seconds_counter = 0.0;
                     }
+                    string text = STR("fps: %i");
+                    text = sprint(temp, text, last_fps);
+                    draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
 				}
 
 				int slot_index = 0;
