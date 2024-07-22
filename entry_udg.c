@@ -79,6 +79,7 @@ typedef struct Sprite {
 typedef enum SpriteID {
     SPRITE_nil,
     SPRITE_player,
+    SPRITE_rock,
     SPRITE_spider,
     SPRITE_MAX,
 } SpriteID;
@@ -95,8 +96,9 @@ Vector2 get_sprite_size(Sprite* sprite) {
 
 typedef enum EntityArchetype{
     arch_nil = 0,
-    arch_player = 1,
-    arch_monster = 2,
+    arch_player,
+    arch_rock,
+    arch_monster,
     ARCH_MAX,
 } EntityArchetype;
 
@@ -132,6 +134,7 @@ typedef struct ItemData {
 typedef enum UXState {
 	UX_nil,
 	UX_inventory,
+	UX_debug,
 } UXState;
 
 typedef struct World{
@@ -176,6 +179,10 @@ void setup_spider(Entity* en) {
     en->sprite_id = SPRITE_spider;
 }
 
+void setup_rock(Entity* en) {
+    en->arch = arch_rock;
+    en->sprite_id = SPRITE_rock;
+}
 
 Vector2 get_mouse_pos_in_ndc() {
 	float mouse_x = input_frame.mouse_x;
@@ -233,6 +240,7 @@ int entry(int argc, char **argv) {
    
     sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\undefined.png"), get_heap_allocator()) };
     sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\dude.png"), get_heap_allocator()) };
+    sprites[SPRITE_rock] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\rock.png"), get_heap_allocator()) };
     sprites[SPRITE_spider] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\spider.png"), get_heap_allocator()) };
 
 	Gfx_Font *font = load_font_from_disk(STR("C:/windows/fonts/arial.ttf"), get_heap_allocator());
@@ -248,10 +256,9 @@ int entry(int argc, char **argv) {
 
    for (int i = 0; i < 10; i++) {
 		Entity* en = entity_create();
-		setup_spider(en);
+		setup_rock(en);
 		en->pos = v2(get_random_float32_in_range(-200, 200), get_random_float32_in_range(-200, 200));
 		en->pos = round_v2_to_tile(en->pos);
-		// en->pos.y -= tile_width * 0.5;
 	}
 
     float64 seconds_counter = 0.0;
@@ -420,6 +427,17 @@ int entry(int argc, char **argv) {
 					Matrix4 xform = m4_identity;
 					xform = m4_translate(xform, v3(x_start_pos, y_pos, 0.0));
 					draw_rect_xform(xform, v2(entire_thing_width_idk, icon_width), bg_box_col);
+                    //:fps
+                    seconds_counter += delta;
+                    frame_count+=1;
+                    string text = STR("fps: %i");
+                    text = sprint(temp, text, frame_count);
+                    draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
+                    if(seconds_counter > 1.0){
+                        log("fps: %i", frame_count );
+                        frame_count = 0;
+                        seconds_counter = 0.0;
+                    }
 				}
 
 				int slot_index = 0;
@@ -516,15 +534,6 @@ int entry(int argc, char **argv) {
 						slot_index += 1;
 					}
 				}
-                //:fps
-                seconds_counter += delta;
-                frame_count+=1;
-                if(seconds_counter > 1.0){
-                    log("fps: %i", frame_count );
-                    draw_text(font, sprint(temp, STR("fps: %i"), frame_count), font_height, v2(0,0), v2(0.1, 0.1), COLOR_WHITE);
-                    frame_count = 0;
-                    seconds_counter = 0.0;
-                }
 
 			}
 		}
