@@ -1,3 +1,5 @@
+//:math
+
 inline float v2_dist(Vector2 a, Vector2 b) {
     return v2_length(v2_sub(a, b));
 }
@@ -72,6 +74,8 @@ Vector2 round_v2_to_tile(Vector2 world_pos) {
 	return world_pos;
 }
 
+
+//:sprite
 typedef struct Sprite {
     Gfx_Image* image;
 } Sprite;
@@ -118,6 +122,7 @@ string get_archetype_pretty_name(EntityArchetype arch) {
 	}
 }
 
+//:entity
 typedef struct Entity{
     bool is_valid;
     EntityArchetype arch;
@@ -137,6 +142,7 @@ typedef enum UXState {
 	UX_debug,
 } UXState;
 
+//:world
 typedef struct World{
 	Entity entities[MAX_ENTITY_COUNT];
 	ItemData inventory_items[ARCH_MAX];
@@ -221,6 +227,7 @@ Vector2 screen_to_world() {
 	return (Vector2){ world_pos.x, world_pos.y };
 }
 
+//:entry
 int entry(int argc, char **argv) {
 	
 	window.title = STR("The Dark");
