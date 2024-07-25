@@ -269,7 +269,7 @@ int entry(int argc, char **argv) {
 	
 	render_atlas_if_not_yet_rendered(font, 32, 'A');
 	
-	float32 input_speed = 50.0;
+	float32 input_speed = 150.0;
 
     Entity* player_en = entity_create();
     setup_player(player_en);
@@ -358,12 +358,10 @@ int entry(int argc, char **argv) {
 
         //:input
         Vector2 input_axis = v2(0, 0);
+        float32 dash_speed = 1.0;
         if (is_key_just_pressed(KEY_ESCAPE)){
             window.should_close = true;
         }
-        if (is_key_down(KEY_SPACEBAR)) {
-            log("attack!");	
-        }	
         if (is_key_down('W')) {
             input_axis.y += 1.0;
         }
@@ -377,7 +375,10 @@ int entry(int argc, char **argv) {
             input_axis.x += 1.0;
         }
         input_axis = v2_normalize(input_axis);
-        player_en->pos = v2_add(player_en->pos, v2_mulf(input_axis, input_speed * delta ));
+        if (is_key_just_pressed(KEY_SPACEBAR)) {
+            dash_speed = 50.0;
+        }
+        player_en->pos = v2_add(player_en->pos, v2_mulf(input_axis, input_speed * dash_speed * delta ));
         
 
         //:render entities
