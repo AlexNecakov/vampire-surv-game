@@ -314,7 +314,7 @@ int entry(int argc, char **argv) {
 
 		{
 			// log("%f, %f", mouse_pos_world.x, mouse_pos_world.y);
-			// draw_text(font, sprint(temp, STR("%f %f"), mouse_pos_world.x, mouse_pos_world.y), font_height, mouse_pos_world, v2(0.1, 0.1), COLOR_RED);
+			// draw_text(font, sprint(temp_allocator, STR("%f %f"), mouse_pos_world.x, mouse_pos_world.y), font_height, mouse_pos_world, v2(0.1, 0.1), COLOR_RED);
 
 			float smallest_dist = INFINITY;
 			for (int i = 0; i < MAX_ENTITY_COUNT; i++) {
@@ -403,7 +403,7 @@ int entry(int argc, char **argv) {
                 draw_image_xform(sprite->image, xform, get_sprite_size(sprite), col);
 
                 // debug pos 
-                draw_text(font, sprint(temp, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
+                draw_text(font, sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
             }
         }
 
@@ -458,7 +458,7 @@ int entry(int argc, char **argv) {
                         seconds_counter = 0.0;
                     }
                     string text = STR("fps: %i");
-                    text = sprint(temp, text, last_fps);
+                    text = sprint(temp_allocator, text, last_fps);
                     draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
 				}
 
@@ -540,7 +540,7 @@ int entry(int argc, char **argv) {
 
 							{
 								string text = STR("x%i");
-								text = sprint(temp, text, item->amount);
+								text = sprint(temp_allocator, text, item->amount);
 
 								Gfx_Text_Metrics metrics = measure_text(font, text, font_height, v2(0.1, 0.1));
 								Vector2 draw_pos = v2(icon_center.x, current_y_pos);
