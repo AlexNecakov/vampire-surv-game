@@ -90,7 +90,12 @@ typedef enum SpriteID {
 Sprite sprites[SPRITE_MAX];
 Sprite* get_sprite(SpriteID id){
     if (id >= 0 && id < SPRITE_MAX){
-        return &sprites[id];
+    	Sprite* sprite = &sprites[id];
+		if (sprite->image) {
+			return sprite;
+		} else {
+			return &sprites[0];
+		}
     }
     return &sprites[0];
 }
@@ -249,8 +254,16 @@ int entry(int argc, char **argv) {
     sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\dude.png"), get_heap_allocator()) };
     sprites[SPRITE_rock] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\rock.png"), get_heap_allocator()) };
     sprites[SPRITE_spider] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\spider.png"), get_heap_allocator()) };
-
-	Gfx_Font *font = load_font_from_disk(STR("C:/windows/fonts/arial.ttf"), get_heap_allocator());
+	
+    // @ship debug this off
+	{
+		for (SpriteID i = 0; i < SPRITE_MAX; i++) {
+			Sprite* sprite = &sprites[i];
+			assert(sprite->image, "Sprite was not setup properly");
+		}
+	}
+	
+    Gfx_Font *font = load_font_from_disk(STR("C:/windows/fonts/arial.ttf"), get_heap_allocator());
 	assert(font, "Failed loading arial.ttf, %d", GetLastError());	
     const u32 font_height = 48;
 	
