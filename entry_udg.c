@@ -55,10 +55,8 @@ Range2f quad_to_range(Draw_Quad quad) {
 	return (Range2f){quad.bottom_left, quad.top_right};
 }
 
-Vector4 bg_box_col = {0, 0, 0, 0.5};
+Vector4 bg_box_col = {0, 0, 1.0, 0.5};
 const int tile_width = 16;
-const float entity_selection_radius = 16.0f;
-const float player_pickup_radius = 20.0f;
 
 int world_pos_to_tile_pos(float world_pos) {
 	return roundf(world_pos / (float)tile_width);
@@ -115,22 +113,6 @@ typedef enum EntityArchetype{
     ARCH_MAX,
 } EntityArchetype;
 
-SpriteID get_sprite_id_from_archetype(EntityArchetype arch) {
-	switch (arch) {
-		//case arch_item_pine_wood: return SPRITE_item_pine_wood; break;
-		//case arch_item_rock: return SPRITE_item_rock; break;
-		default: return 0;
-	}
-}
-
-string get_archetype_pretty_name(EntityArchetype arch) {
-	switch (arch) {
-		//case arch_item_pine_wood: return STR("Pine Wood");
-		//case arch_item_rock: return STR("Rock");
-		default: return STR("nil");
-	}
-}
-
 //:entity
 typedef struct Entity{
     bool is_valid;
@@ -148,7 +130,6 @@ typedef struct ItemData {
 typedef enum UXState {
 	UX_nil,
 	UX_default,
-	UX_inventory,
 	UX_debug,
 } UXState;
 
@@ -157,8 +138,6 @@ typedef struct World{
 	Entity entities[MAX_ENTITY_COUNT];
 	ItemData inventory_items[ARCH_MAX];
 	UXState ux_state;
-	float inventory_alpha;
-	float inventory_alpha_target;
 } World;
 World* world = 0;
 
@@ -256,7 +235,7 @@ int entry(int argc, char **argv) {
     world = alloc(get_heap_allocator(), sizeof(World));
     memset(world, 0, sizeof(World));
 
-    float32 spriteSheetWidth = 240.0;
+    const float32 spriteSheetWidth = 240.0;
     float32 zoom = window.width/spriteSheetWidth;
     Vector2 camera_pos = v2(0,0);
    
@@ -278,7 +257,6 @@ int entry(int argc, char **argv) {
     Gfx_Font *font = load_font_from_disk(STR("C:/windows/fonts/arial.ttf"), get_heap_allocator());
 	assert(font, "Failed loading arial.ttf, %d", GetLastError());	
     const u32 font_height = 48;
-	
 	render_atlas_if_not_yet_rendered(font, 32, 'A');
 	
 	float32 input_speed = 150.0;
@@ -328,8 +306,8 @@ int entry(int argc, char **argv) {
 		int mouse_tile_y = world_pos_to_tile_pos(mouse_pos_world.y);
 
 		{
-			// log("%f, %f", mouse_pos_world.x, mouse_pos_world.y);
-			// draw_text(font, sprint(temp_allocator, STR("%f %f"), mouse_pos_world.x, mouse_pos_world.y), font_height, mouse_pos_world, v2(0.1, 0.1), COLOR_RED);
+			log("%f, %f", mouse_pos_world.x, mouse_pos_world.y);
+			draw_text(font, sprint(temp_allocator, STR("%f %f"), mouse_pos_world.x, mouse_pos_world.y), font_height, mouse_pos_world, v2(0.1, 0.1), COLOR_RED);
 
 			float smallest_dist = INFINITY;
 			for (int i = 0; i < MAX_ENTITY_COUNT; i++) {
@@ -341,7 +319,7 @@ int entry(int argc, char **argv) {
 					int entity_tile_y = world_pos_to_tile_pos(en->pos.y);
 
 					float dist = fabsf(v2_dist(en->pos, mouse_pos_world));
-					if (dist < entity_selection_radius) {
+					if (dist < 0.3){//entity_selection_radius) {
 						if (!world_frame.selected_entity || (dist < smallest_dist)) {
 							world_frame.selected_entity = en;
 							smallest_dist = dist;
@@ -393,7 +371,7 @@ int entry(int argc, char **argv) {
         if (is_key_just_pressed(KEY_SPACEBAR)) {
             dash_speed = 50.0;
         }
-        player_en->pos = v2_add(player_en->pos, v2_mulf(input_axis, input_speed * dash_speed * delta ));
+        cursor_en->pos = v2_add(cursor_en->pos, v2_mulf(input_axis, input_speed * dash_speed * delta ));
         
 
         //:render entities
@@ -425,155 +403,32 @@ int entry(int argc, char **argv) {
 
         //:ui rendering
 		{
-			float width = 240.0;
-			float height = 135.0;
+			float width = window.width;
+			float height = window.height / 3.0f;
 			draw_frame.view = m4_scalar(1.0);
 			draw_frame.projection = m4_make_orthographic_projection(0.0, width, 0.0, height, -1, 10);
 
-			// :inventory UI
-			if (is_key_just_pressed(KEY_TAB)) {
-				consume_key_just_pressed(KEY_TAB);
-				world->ux_state = (world->ux_state == UX_inventory ? UX_nil : UX_inventory);
-			}
-			world->inventory_alpha_target = (world->ux_state == UX_inventory ? 1.0 : 0.0);
-			animate_f32_to_target(&world->inventory_alpha, world->inventory_alpha_target, delta, 15.0);
-			bool is_inventory_enabled = world->inventory_alpha_target == 1.0;
-			if (world->inventory_alpha_target != 0.0)
-			{
-				// TODO - some opacity thing here.
-				float y_pos = 70.0;
+			world->ux_state = (world->ux_state == UX_default ? UX_nil : UX_default);
+            float y_pos = 70.0;
 
-				int item_count = 0;
-				for (int i = 0; i < ARCH_MAX; i++) {
-					ItemData* item = &world->inventory_items[i];
-					if (item->amount > 0) {
-						item_count += 1;
-					}
-				}
+            // bg box rendering thing
+            {
+                Matrix4 xform = m4_identity;
+                draw_rect_xform(xform, v2(width, height), bg_box_col);
+                //:fps
+                seconds_counter += delta;
+                frame_count+=1;
+                if(seconds_counter > 1.0){
+                    last_fps = frame_count;
+                    log("fps: %i", last_fps );
+                    frame_count = 0;
+                    seconds_counter = 0.0;
+                }
+                string text = STR("fps: %i");
+                text = sprint(temp_allocator, text, last_fps);
+                draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
+            }
 
-				const float icon_thing = 8.0;
-				float icon_width = icon_thing;
-
-				const int icon_row_count = 8;
-
-				float entire_thing_width_idk = icon_row_count * icon_width;
-				float x_start_pos = (width/2.0)-(entire_thing_width_idk/2.0);
-
-				// bg box rendering thing
-				{
-					Matrix4 xform = m4_identity;
-					xform = m4_translate(xform, v3(x_start_pos, y_pos, 0.0));
-					draw_rect_xform(xform, v2(entire_thing_width_idk, icon_width), bg_box_col);
-                    //:fps
-                    seconds_counter += delta;
-                    frame_count+=1;
-                    if(seconds_counter > 1.0){
-                        last_fps = frame_count;
-                        log("fps: %i", last_fps );
-                        frame_count = 0;
-                        seconds_counter = 0.0;
-                    }
-                    string text = STR("fps: %i");
-                    text = sprint(temp_allocator, text, last_fps);
-                    draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
-				}
-
-				int slot_index = 0;
-				for (int i = 0; i < ARCH_MAX; i++) {
-					ItemData* item = &world->inventory_items[i];
-					if (item->amount > 0) {
-
-						float slot_index_offset = slot_index * icon_width;
-
-						Matrix4 xform = m4_scalar(1.0);
-						xform = m4_translate(xform, v3(x_start_pos + slot_index_offset, y_pos, 0.0));
-
-						Sprite* sprite = get_sprite(get_sprite_id_from_archetype(i));
-
-						float is_selected_alpha = 0.0;
-
-						Draw_Quad* quad = draw_rect_xform(xform, v2(8, 8), v4(1, 1, 1, 0.2));
-						Range2f icon_box = quad_to_range(*quad);
-						if (is_inventory_enabled && range2f_contains(icon_box, get_mouse_pos_in_ndc())) {
-							is_selected_alpha = 1.0;
-						}
-
-						Matrix4 box_bottom_right_xform = xform;
-
-						xform = m4_translate(xform, v3(icon_width * 0.5, icon_width * 0.5, 0.0));
-
-						if (is_selected_alpha == 1.0)
-						{
-							float scale_adjust = 0.3; //0.1 * sin_breathe(os_get_current_time_in_seconds(), 20.0);
-							xform = m4_scale(xform, v3(1 + scale_adjust, 1 + scale_adjust, 1));
-						}
-						{
-							// could also rotate ...
-							// float adjust = PI32 * 2.0 * sin_breathe(os_get_current_time_in_seconds(), 1.0);
-							// xform = m4_rotate_z(xform, adjust);
-						}
-						xform = m4_translate(xform, v3(get_sprite_size(sprite).x * -0.5, get_sprite_size(sprite).y * -0.5, 0));
-						draw_image_xform(sprite->image, xform, get_sprite_size(sprite), COLOR_WHITE);
-
-						// draw_text_xform(font, STR("5"), font_height, box_bottom_right_xform, v2(0.1, 0.1), COLOR_WHITE);
-
-						// tooltip
-						if (is_selected_alpha == 1.0)
-						{
-							Draw_Quad screen_quad = ndc_quad_to_screen_quad(*quad);
-							Range2f screen_range = quad_to_range(screen_quad);
-							Vector2 icon_center = range2f_get_center(screen_range);
-
-							// icon_center
-							Matrix4 xform = m4_scalar(1.0);
-
-							// TODO - we're guessing at the Y box size here.
-							// in order to automate this, we would need to move it down below after we do all the element advance things for the text.
-							// ... but then the box would be drawing in front of everyone. So we'd have to do Z sorting.
-							// Solution for now is to just guess at the size and OOGA BOOGA.
-							Vector2 box_size = v2(40, 14);
-
-							// xform = m4_pivot_box(xform, box_size, PIVOT_top_center);
-							xform = m4_translate(xform, v3(box_size.x * -0.5, -box_size.y - icon_width * 0.5, 0));
-							xform = m4_translate(xform, v3(icon_center.x, icon_center.y, 0));
-							draw_rect_xform(xform, box_size, bg_box_col);
-
-							float current_y_pos = icon_center.y;
-							{
-								string title = get_archetype_pretty_name(i);
-								Gfx_Text_Metrics metrics = measure_text(font, title, font_height, v2(0.1, 0.1));
-								Vector2 draw_pos = icon_center;
-								draw_pos = v2_sub(draw_pos, metrics.visual_pos_min);
-								draw_pos = v2_add(draw_pos, v2_mul(metrics.visual_size, v2(-0.5, -1.0))); // top center
-
-								draw_pos = v2_add(draw_pos, v2(0, icon_width * -0.5));
-								draw_pos = v2_add(draw_pos, v2(0, -2.0)); // padding
-
-								draw_text(font, title, font_height, draw_pos, v2(0.1, 0.1), COLOR_WHITE);
-
-								current_y_pos = draw_pos.y;
-							}
-
-							{
-								string text = STR("x%i");
-								text = sprint(temp_allocator, text, item->amount);
-
-								Gfx_Text_Metrics metrics = measure_text(font, text, font_height, v2(0.1, 0.1));
-								Vector2 draw_pos = v2(icon_center.x, current_y_pos);
-								draw_pos = v2_sub(draw_pos, metrics.visual_pos_min);
-								draw_pos = v2_add(draw_pos, v2_mul(metrics.visual_size, v2(-0.5, -1.0))); // top center
-
-								draw_pos = v2_add(draw_pos, v2(0, -2.0)); // padding
-
-								draw_text(font, text, font_height, draw_pos, v2(0.1, 0.1), COLOR_WHITE);
-							}
-						}
-
-						slot_index += 1;
-					}
-				}
-
-			}
 		}
         
 		gfx_update();
