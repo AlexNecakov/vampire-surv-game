@@ -103,6 +103,7 @@ Vector2 get_sprite_size(Sprite* sprite) {
 	return (Vector2) { sprite->image->width, sprite->image->height };
 }
 
+//:entity
 typedef enum EntityArchetype{
     arch_nil = 0,
     arch_player,
@@ -113,7 +114,6 @@ typedef enum EntityArchetype{
     ARCH_MAX,
 } EntityArchetype;
 
-//:entity
 typedef struct Entity{
     bool is_valid;
     EntityArchetype arch;
@@ -234,6 +234,7 @@ int entry(int argc, char **argv) {
     
     world = alloc(get_heap_allocator(), sizeof(World));
     memset(world, 0, sizeof(World));
+    world->ux_state = UX_default;
 
     const float32 spriteSheetWidth = 240.0;
     float32 zoom = window.width/spriteSheetWidth;
@@ -408,7 +409,6 @@ int entry(int argc, char **argv) {
 			draw_frame.view = m4_scalar(1.0);
 			draw_frame.projection = m4_make_orthographic_projection(0.0, width, 0.0, height, -1, 10);
 
-			world->ux_state = (world->ux_state == UX_default ? UX_nil : UX_default);
             float y_pos = 70.0;
 
             // bg box rendering thing
