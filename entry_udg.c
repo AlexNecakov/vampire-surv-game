@@ -83,6 +83,7 @@ typedef struct Sprite {
 typedef enum SpriteID {
     SPRITE_nil,
     SPRITE_player,
+    SPRITE_attack,
     SPRITE_rock,
     SPRITE_spider,
     SPRITE_MAX,
@@ -106,6 +107,7 @@ Vector2 get_sprite_size(Sprite* sprite) {
 typedef enum EntityArchetype{
     arch_nil = 0,
     arch_player,
+    arch_attack,
     arch_rock,
     arch_monster,
     ARCH_MAX,
@@ -252,6 +254,7 @@ int entry(int argc, char **argv) {
    
     sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\undefined.png"), get_heap_allocator()) };
     sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\dude.png"), get_heap_allocator()) };
+    sprites[SPRITE_attack] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\attack.png"), get_heap_allocator()) };
     sprites[SPRITE_rock] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\rock.png"), get_heap_allocator()) };
     sprites[SPRITE_spider] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\spider.png"), get_heap_allocator()) };
 	
