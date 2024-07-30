@@ -407,7 +407,6 @@ int entry(int argc, char **argv) {
 			float width = window.width;
 			float height = window.height / 3.0f;
 			draw_frame.view = m4_scalar(1.0);
-			draw_frame.projection = m4_make_orthographic_projection(0.0, width, 0.0, height, -1, 10);
 
             float y_pos = 70.0;
 
