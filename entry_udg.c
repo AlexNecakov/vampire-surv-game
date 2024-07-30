@@ -238,7 +238,6 @@ int entry(int argc, char **argv) {
 
     const float32 spriteSheetWidth = 240.0;
     float32 zoom = window.width/spriteSheetWidth;
-    Vector2 camera_pos = v2(0,0);
    
     sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\undefined.png"), get_heap_allocator()) };
     sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\dude.png"), get_heap_allocator()) };
@@ -289,67 +288,6 @@ int entry(int argc, char **argv) {
 		float64 delta = now - last_time;
 		last_time = now;	
         
-        draw_frame.projection = m4_make_orthographic_projection(window.width * -0.5, window.width * 0.5, window.height * -0.5, window.height * 0.5, -1, 10);
-
-        //:camera
-        {
-            Vector2 target_pos = player_en->pos;
-            animate_v2_to_target(&camera_pos, target_pos, delta, 15.0);
-
-            draw_frame.view = m4_make_scale(v3(1.0, 1.0, 1.0));
-            draw_frame.view = m4_mul(draw_frame.view, m4_make_translation(v3(camera_pos.x, camera_pos.y, 0)));
-            draw_frame.view = m4_mul(draw_frame.view, m4_make_scale(v3(1.0/zoom, 1.0/zoom, 1.0)));
-        }
-
-        //:mouse
-        Vector2 mouse_pos_world = screen_to_world();
-		int mouse_tile_x = world_pos_to_tile_pos(mouse_pos_world.x);
-		int mouse_tile_y = world_pos_to_tile_pos(mouse_pos_world.y);
-
-		{
-			log("%f, %f", mouse_pos_world.x, mouse_pos_world.y);
-			draw_text(font, sprint(temp_allocator, STR("%f %f"), mouse_pos_world.x, mouse_pos_world.y), font_height, mouse_pos_world, v2(0.1, 0.1), COLOR_RED);
-
-			float smallest_dist = INFINITY;
-			for (int i = 0; i < MAX_ENTITY_COUNT; i++) {
-				Entity* en = &world->entities[i];
-				if (en->is_valid) {
-					Sprite* sprite = get_sprite(en->sprite_id);
-
-					int entity_tile_x = world_pos_to_tile_pos(en->pos.x);
-					int entity_tile_y = world_pos_to_tile_pos(en->pos.y);
-
-					float dist = fabsf(v2_dist(en->pos, mouse_pos_world));
-					if (dist < 0.3){//entity_selection_radius) {
-						if (!world_frame.selected_entity || (dist < smallest_dist)) {
-							world_frame.selected_entity = en;
-							smallest_dist = dist;
-						}
-					}
-				}
-			}
-		}
-
-		// :tile rendering
-		{
-			int player_tile_x = world_pos_to_tile_pos(player_en->pos.x);
-			int player_tile_y = world_pos_to_tile_pos(player_en->pos.y);
-			int tile_radius_x = 40;
-			int tile_radius_y = 30;
-			for (int x = player_tile_x - tile_radius_x; x < player_tile_x + tile_radius_x; x++) {
-				for (int y = player_tile_y - tile_radius_y; y < player_tile_y + tile_radius_y; y++) {
-					if ((x + (y % 2 == 0) ) % 2 == 0) {
-						Vector4 col = v4(0.6, 0.6, 0.6, 0.6);
-						float x_pos = x * tile_width;
-						float y_pos = y * tile_width;
-						draw_rect(v2(x_pos + tile_width * -0.5, y_pos + tile_width * -0.5), v2(tile_width, tile_width), col);
-					}
-				}
-			}
-
-			draw_rect(v2(tile_pos_to_world_pos(mouse_tile_x) + tile_width * -0.5, tile_pos_to_world_pos(mouse_tile_y) + tile_width * -0.5), v2(tile_width, tile_width), v4(0.5, 0.5, 0.5, 0.5));
-		}
-
         //:input
         Vector2 input_axis = v2(0, 0);
         float32 dash_speed = 1.0;
@@ -373,9 +311,54 @@ int entry(int argc, char **argv) {
             dash_speed = 50.0;
         }
         cursor_en->pos = v2_add(cursor_en->pos, v2_mulf(input_axis, input_speed * dash_speed * delta ));
-        
+    
+        //:camera
+        draw_frame.projection = m4_make_orthographic_projection(window.width * -0.5, window.width * 0.5, window.height * -0.5, window.height * 0.5, -1, 10);
+        draw_frame.view = m4_mul(draw_frame.view, m4_make_scale(v3(1.0/zoom, 1.0/zoom, 1.0)));
+		
+        //:tile rendering
+		{
+			int player_tile_x = world_pos_to_tile_pos(player_en->pos.x);
+			int player_tile_y = world_pos_to_tile_pos(player_en->pos.y);
+			int tile_radius_x = 40;
+			int tile_radius_y = 30;
+			for (int x = player_tile_x - tile_radius_x; x < player_tile_x + tile_radius_x; x++) {
+				for (int y = player_tile_y - tile_radius_y; y < player_tile_y + tile_radius_y; y++) {
+					if ((x + (y % 2 == 0) ) % 2 == 0) {
+						Vector4 col = v4(0.6, 0.6, 0.6, 0.6);
+						float x_pos = x * tile_width;
+						float y_pos = y * tile_width;
+						draw_rect(v2(x_pos + tile_width * -0.5, y_pos + tile_width * -0.5), v2(tile_width, tile_width), col);
+					}
+				}
+			}
+		}
 
-        //:render entities
+        //:ui rendering
+		{
+			float width = window.width;
+			float height = window.height / 3.0f;
+
+            // bg box rendering thing
+            {
+                draw_rect(v2(-window.width/2.0f, -window.height/2.0f), v2(width, height), bg_box_col);
+                //:fps
+                seconds_counter += delta;
+                frame_count+=1;
+                if(seconds_counter > 1.0){
+                    last_fps = frame_count;
+                    log("fps: %i", last_fps );
+                    frame_count = 0;
+                    seconds_counter = 0.0;
+                }
+                string text = STR("fps: %i");
+                text = sprint(temp_allocator, text, last_fps);
+                //draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
+            }
+
+		}
+
+        //:entity rendering
         for (int i = 0; i < MAX_ENTITY_COUNT; i++){
             Entity* en = &world->entities[i];
             if (en->is_valid){
@@ -402,34 +385,6 @@ int entry(int argc, char **argv) {
             }
         }
 
-        //:ui rendering
-		{
-			float width = window.width;
-			float height = window.height / 3.0f;
-			draw_frame.view = m4_scalar(1.0);
-
-            float y_pos = 70.0;
-
-            // bg box rendering thing
-            {
-                Matrix4 xform = m4_identity;
-                draw_rect_xform(xform, v2(width, height), bg_box_col);
-                //:fps
-                seconds_counter += delta;
-                frame_count+=1;
-                if(seconds_counter > 1.0){
-                    last_fps = frame_count;
-                    log("fps: %i", last_fps );
-                    frame_count = 0;
-                    seconds_counter = 0.0;
-                }
-                string text = STR("fps: %i");
-                text = sprint(temp_allocator, text, last_fps);
-                draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
-            }
-
-		}
-        
 		gfx_update();
        
 	}
