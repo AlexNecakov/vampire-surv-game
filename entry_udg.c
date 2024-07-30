@@ -83,6 +83,7 @@ typedef struct Sprite {
 typedef enum SpriteID {
     SPRITE_nil,
     SPRITE_player,
+    SPRITE_cursor,
     SPRITE_attack,
     SPRITE_rock,
     SPRITE_spider,
@@ -107,6 +108,7 @@ Vector2 get_sprite_size(Sprite* sprite) {
 typedef enum EntityArchetype{
     arch_nil = 0,
     arch_player,
+    arch_cursor,
     arch_attack,
     arch_rock,
     arch_monster,
@@ -145,6 +147,7 @@ typedef struct ItemData {
 
 typedef enum UXState {
 	UX_nil,
+	UX_default,
 	UX_inventory,
 	UX_debug,
 } UXState;
@@ -185,6 +188,11 @@ void entity_destroy(Entity* entity){
 void setup_player(Entity* en) {
     en->arch = arch_player;
     en->sprite_id = SPRITE_player;
+}
+
+void setup_cursor(Entity* en) {
+    en->arch = arch_cursor;
+    en->sprite_id = SPRITE_cursor;
 }
 
 void setup_spider(Entity* en) {
@@ -237,7 +245,7 @@ Vector2 screen_to_world() {
 //:entry
 int entry(int argc, char **argv) {
 	
-	window.title = STR("The Dark");
+	window.title = STR("Endless Fantasy");
 	window.scaled_width = 1280; // We need to set the scaled size if we want to handle system scaling (DPI)
 	window.scaled_height = 720; 
     window.x = 200;
@@ -254,6 +262,7 @@ int entry(int argc, char **argv) {
    
     sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\undefined.png"), get_heap_allocator()) };
     sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\dude.png"), get_heap_allocator()) };
+    sprites[SPRITE_cursor] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\arrow.png"), get_heap_allocator()) };
     sprites[SPRITE_attack] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\attack.png"), get_heap_allocator()) };
     sprites[SPRITE_rock] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\rock.png"), get_heap_allocator()) };
     sprites[SPRITE_spider] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\spider.png"), get_heap_allocator()) };
@@ -277,7 +286,10 @@ int entry(int argc, char **argv) {
     Entity* player_en = entity_create();
     setup_player(player_en);
 
-   for (int i = 0; i < 10; i++) {
+    Entity* cursor_en = entity_create();
+    setup_cursor(cursor_en);
+
+    for (int i = 0; i < 10; i++) {
 		Entity* en = entity_create();
 		setup_rock(en);
 		en->pos = v2(get_random_float32_in_range(-200, 200), get_random_float32_in_range(-200, 200));
