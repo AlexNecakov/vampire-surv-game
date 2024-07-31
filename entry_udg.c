@@ -1,5 +1,15 @@
-//:math
+//:constants
+#define MAX_ENTITY_COUNT 1024
+const u32 font_height = 48;
+const float32 spriteSheetWidth = 240.0;
+Vector4 bg_box_col = {0, 0, 1.0, 0.5};
+const int tile_width = 16;
+const s32 layer_ui = 30;
+const s32 layer_world = 10;
+const s32 layer_entity = 20;
+const s32 layer_cursor = 50;
 
+//:math
 inline float v2_dist(Vector2 a, Vector2 b) {
     return v2_length(v2_sub(a, b));
 }
@@ -55,8 +65,6 @@ Range2f quad_to_range(Draw_Quad quad) {
 	return (Range2f){quad.bottom_left, quad.top_right};
 }
 
-Vector4 bg_box_col = {0, 0, 1.0, 0.5};
-const int tile_width = 16;
 
 int world_pos_to_tile_pos(float world_pos) {
 	return roundf(world_pos / (float)tile_width);
@@ -71,7 +79,6 @@ Vector2 round_v2_to_tile(Vector2 world_pos) {
 	world_pos.y = tile_pos_to_world_pos(world_pos_to_tile_pos(world_pos.y));
 	return world_pos;
 }
-
 
 //:sprite
 typedef struct Sprite {
@@ -121,7 +128,6 @@ typedef struct Entity{
     bool render_sprite;
     SpriteID sprite_id;
 } Entity;
-#define MAX_ENTITY_COUNT 1024
 
 typedef struct ItemData {
 	int amount;
@@ -142,7 +148,8 @@ typedef struct World{
 World* world = 0;
 
 typedef struct WorldFrame {
-	Entity* selected_entity;
+	Matrix4 world_proj;
+	Matrix4 world_view;
 } WorldFrame;
 WorldFrame world_frame;
 
@@ -221,6 +228,17 @@ Vector2 screen_to_world() {
 	return (Vector2){ world_pos.x, world_pos.y };
 }
 
+float screen_width = 240.0;
+float screen_height = 135.0;
+void set_screen_space() {
+	draw_frame.view = m4_scalar(1.0);
+	draw_frame.projection = m4_make_orthographic_projection(0.0, screen_width, 0.0, screen_height, -1, 10);
+}
+void set_world_space() {
+	draw_frame.projection = world_frame.world_proj;
+	draw_frame.view = world_frame.world_view;
+}
+
 //:entry
 int entry(int argc, char **argv) {
 	
@@ -236,7 +254,6 @@ int entry(int argc, char **argv) {
     memset(world, 0, sizeof(World));
     world->ux_state = UX_default;
 
-    const float32 spriteSheetWidth = 240.0;
     float32 zoom = window.width/spriteSheetWidth;
    
     sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\undefined.png"), get_heap_allocator()) };
@@ -256,7 +273,6 @@ int entry(int argc, char **argv) {
 	
     Gfx_Font *font = load_font_from_disk(STR("C:/windows/fonts/arial.ttf"), get_heap_allocator());
 	assert(font, "Failed loading arial.ttf, %d", GetLastError());	
-    const u32 font_height = 48;
 	render_atlas_if_not_yet_rendered(font, 32, 'A');
 	
 	float32 input_speed = 150.0;
@@ -307,10 +323,7 @@ int entry(int argc, char **argv) {
             input_axis.x += 1.0;
         }
         input_axis = v2_normalize(input_axis);
-        if (is_key_just_pressed(KEY_SPACEBAR)) {
-            dash_speed = 50.0;
-        }
-        cursor_en->pos = v2_add(cursor_en->pos, v2_mulf(input_axis, input_speed * dash_speed * delta ));
+        cursor_en->pos = v2_add(cursor_en->pos, v2_mulf(input_axis, input_speed * delta ));
     
         //:camera
         draw_frame.projection = m4_make_orthographic_projection(window.width * -0.5, window.width * 0.5, window.height * -0.5, window.height * 0.5, -1, 10);
@@ -339,9 +352,11 @@ int entry(int argc, char **argv) {
 			float width = window.width;
 			float height = window.height / 3.0f;
 
-            // bg box rendering thing
+            // bg box 
             {
-                draw_rect(v2(-window.width/2.0f, -window.height/2.0f), v2(width, height), bg_box_col);
+                Matrix4 xform = m4_scalar(1.0);
+                xform = m4_translate(xform, v3(window.width/2.0 - 64.0, 70.0, 0.0));
+                draw_rect_xform(xform, v2(width, height), bg_box_col);
                 //:fps
                 seconds_counter += delta;
                 frame_count+=1;
@@ -374,10 +389,6 @@ int entry(int argc, char **argv) {
 
 
                 Vector4 col = COLOR_WHITE;
-                if (world_frame.selected_entity == en) {
-                    col = COLOR_RED;
-                }
-
                 draw_image_xform(sprite->image, xform, get_sprite_size(sprite), col);
 
                 // debug pos 
