@@ -2,24 +2,35 @@
 #define MAX_ENTITY_COUNT 1024
 const u32 font_height = 48;
 const float32 spriteSheetWidth = 240.0;
-Vector4 bg_box_col = {0, 0, 1.0, 0.5};
 const int tile_width = 16;
 const s32 layer_ui = 30;
 const s32 layer_world = 10;
 const s32 layer_entity = 20;
 const s32 layer_cursor = 50;
+Vector4 bg_box_col = {0, 0, 1.0, 0.5};
+float screen_width = 240.0;
+float screen_height = 135.0;
 
 //:math
+#define m4_identity m4_make_scale(v3(1, 1, 1))
+
 inline float v2_dist(Vector2 a, Vector2 b) {
     return v2_length(v2_sub(a, b));
 }
-
-#define m4_identity m4_make_scale(v3(1, 1, 1))
 
 Vector2 range2f_get_center(Range2f r) {
 	return (Vector2) { (r.max.x - r.min.x) * 0.5 + r.min.x, (r.max.y - r.min.y) * 0.5 + r.min.y };
 }
 
+float sin_breathe(float time, float rate) {
+	return (sin(time * rate) + 1.0) / 2.0;
+}
+
+bool almost_equals(float a, float b, float epsilon) {
+ return fabs(a - b) <= epsilon;
+}
+
+//:coordinate conversion
 Draw_Quad ndc_quad_to_screen_quad(Draw_Quad ndc_quad) {
 
 	// NOTE: we're assuming these are the screen space matricies.
@@ -36,29 +47,6 @@ Draw_Quad ndc_quad_to_screen_quad(Draw_Quad ndc_quad) {
 	ndc_quad.top_right = m4_transform(ndc_to_screen_space, v4(v2_expand(ndc_quad.top_right), 0, 1)).xy;
 
 	return ndc_quad;
-}
-
-float sin_breathe(float time, float rate) {
-	return (sin(time * rate) + 1.0) / 2.0;
-}
-
-bool almost_equals(float a, float b, float epsilon) {
- return fabs(a - b) <= epsilon;
-}
-
-bool animate_f32_to_target(float* value, float target, float delta_t, float rate) {
-	*value += (target - *value) * (1.0 - pow(2.0f, -rate * delta_t));
-	if (almost_equals(*value, target, 0.001f))
-	{
-		*value = target;
-		return true; // reached
-	}
-	return false;
-}
-
-void animate_v2_to_target(Vector2* value, Vector2 target, float delta_t, float rate) {
-	animate_f32_to_target(&(value->x), target.x, delta_t, rate);
-	animate_f32_to_target(&(value->y), target.y, delta_t, rate);
 }
 
 Range2f quad_to_range(Draw_Quad quad) {
@@ -79,6 +67,77 @@ Vector2 round_v2_to_tile(Vector2 world_pos) {
 	world_pos.y = tile_pos_to_world_pos(world_pos_to_tile_pos(world_pos.y));
 	return world_pos;
 }
+
+Vector2 get_mouse_pos_in_ndc() {
+	float mouse_x = input_frame.mouse_x;
+	float mouse_y = input_frame.mouse_y;
+	Matrix4 proj = draw_frame.projection;
+	Matrix4 view = draw_frame.view;
+	float window_w = window.width;
+	float window_h = window.height;
+
+	// Normalize the mouse coordinates
+	float ndc_x = (mouse_x / (window_w * 0.5f)) - 1.0f;
+	float ndc_y = (mouse_y / (window_h * 0.5f)) - 1.0f;
+
+	return (Vector2){ ndc_x, ndc_y };
+}
+
+Vector2 screen_to_world() {
+	float mouse_x = input_frame.mouse_x;
+	float mouse_y = input_frame.mouse_y;
+	Matrix4 proj = draw_frame.projection;
+	Matrix4 view = draw_frame.view;
+	float window_w = window.width;
+	float window_h = window.height;
+
+	// Normalize the mouse coordinates
+	float ndc_x = (mouse_x / (window_w * 0.5f)) - 1.0f;
+	float ndc_y = (mouse_y / (window_h * 0.5f)) - 1.0f;
+
+	// Transform to world coordinates
+	Vector4 world_pos = v4(ndc_x, ndc_y, 0, 1);
+	world_pos = m4_transform(m4_inverse(proj), world_pos);
+	world_pos = m4_transform(view, world_pos);
+	// log("%f, %f", world_pos.x, world_pos.y);
+
+	// Return as 2D vector
+	return (Vector2){ world_pos.x, world_pos.y };
+}
+
+void set_screen_space() {
+	draw_frame.view = m4_scalar(1.0);
+	draw_frame.projection = m4_make_orthographic_projection(0.0, screen_width, 0.0, screen_height, -1, 10);
+}
+void set_world_space() {
+	draw_frame.projection = world_frame.world_proj;
+	draw_frame.view = world_frame.world_view;
+}
+
+//:animate
+bool animate_f32_to_target(float* value, float target, float delta_t, float rate) {
+	*value += (target - *value) * (1.0 - pow(2.0f, -rate * delta_t));
+	if (almost_equals(*value, target, 0.001f))
+	{
+		*value = target;
+		return true; // reached
+	}
+	return false;
+}
+
+void animate_v2_to_target(Vector2* value, Vector2 target, float delta_t, float rate) {
+	animate_f32_to_target(&(value->x), target.x, delta_t, rate);
+	animate_f32_to_target(&(value->y), target.y, delta_t, rate);
+}
+
+//:world
+typedef struct World{
+	Entity entities[MAX_ENTITY_COUNT];
+	UXState ux_state;
+	Matrix4 world_proj;
+	Matrix4 world_view;
+} World;
+World* world = 0;
 
 //:sprite
 typedef struct Sprite {
@@ -129,30 +188,6 @@ typedef struct Entity{
     SpriteID sprite_id;
 } Entity;
 
-typedef struct ItemData {
-	int amount;
-} ItemData; 
-
-typedef enum UXState {
-	UX_nil,
-	UX_default,
-	UX_debug,
-} UXState;
-
-//:world
-typedef struct World{
-	Entity entities[MAX_ENTITY_COUNT];
-	ItemData inventory_items[ARCH_MAX];
-	UXState ux_state;
-} World;
-World* world = 0;
-
-typedef struct WorldFrame {
-	Matrix4 world_proj;
-	Matrix4 world_view;
-} WorldFrame;
-WorldFrame world_frame;
-
 Entity* entity_create() {
     Entity* entity_found = 0;
     for (int i = 0; i < MAX_ENTITY_COUNT; i++){
@@ -191,53 +226,17 @@ void setup_rock(Entity* en) {
     en->sprite_id = SPRITE_rock;
 }
 
-Vector2 get_mouse_pos_in_ndc() {
-	float mouse_x = input_frame.mouse_x;
-	float mouse_y = input_frame.mouse_y;
-	Matrix4 proj = draw_frame.projection;
-	Matrix4 view = draw_frame.view;
-	float window_w = window.width;
-	float window_h = window.height;
+//:item data
+typedef struct ItemData {
+	int amount;
+} ItemData; 
 
-	// Normalize the mouse coordinates
-	float ndc_x = (mouse_x / (window_w * 0.5f)) - 1.0f;
-	float ndc_y = (mouse_y / (window_h * 0.5f)) - 1.0f;
-
-	return (Vector2){ ndc_x, ndc_y };
-}
-
-Vector2 screen_to_world() {
-	float mouse_x = input_frame.mouse_x;
-	float mouse_y = input_frame.mouse_y;
-	Matrix4 proj = draw_frame.projection;
-	Matrix4 view = draw_frame.view;
-	float window_w = window.width;
-	float window_h = window.height;
-
-	// Normalize the mouse coordinates
-	float ndc_x = (mouse_x / (window_w * 0.5f)) - 1.0f;
-	float ndc_y = (mouse_y / (window_h * 0.5f)) - 1.0f;
-
-	// Transform to world coordinates
-	Vector4 world_pos = v4(ndc_x, ndc_y, 0, 1);
-	world_pos = m4_transform(m4_inverse(proj), world_pos);
-	world_pos = m4_transform(view, world_pos);
-	// log("%f, %f", world_pos.x, world_pos.y);
-
-	// Return as 2D vector
-	return (Vector2){ world_pos.x, world_pos.y };
-}
-
-float screen_width = 240.0;
-float screen_height = 135.0;
-void set_screen_space() {
-	draw_frame.view = m4_scalar(1.0);
-	draw_frame.projection = m4_make_orthographic_projection(0.0, screen_width, 0.0, screen_height, -1, 10);
-}
-void set_world_space() {
-	draw_frame.projection = world_frame.world_proj;
-	draw_frame.view = world_frame.world_view;
-}
+//:ux state
+typedef enum UXState {
+	UX_nil,
+	UX_default,
+	UX_debug,
+} UXState;
 
 //:entry
 int entry(int argc, char **argv) {
@@ -249,13 +248,12 @@ int entry(int argc, char **argv) {
     window.y = 200;
 	window.clear_color = hex_to_rgba(0x1e1e1eff);
     float32 aspectRatio = (float32)window.width/(float32)window.height; 
+    float32 zoom = window.width/spriteSheetWidth;
     
     world = alloc(get_heap_allocator(), sizeof(World));
     memset(world, 0, sizeof(World));
     world->ux_state = UX_default;
 
-    float32 zoom = window.width/spriteSheetWidth;
-   
     sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\undefined.png"), get_heap_allocator()) };
     sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\dude.png"), get_heap_allocator()) };
     sprites[SPRITE_cursor] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\arrow.png"), get_heap_allocator()) };
@@ -354,8 +352,7 @@ int entry(int argc, char **argv) {
 
             // bg box 
             {
-                Matrix4 xform = m4_scalar(1.0);
-                xform = m4_translate(xform, v3(window.width/2.0 - 64.0, 70.0, 0.0));
+                Matrix4 xform = draw_frame.view;
                 draw_rect_xform(xform, v2(width, height), bg_box_col);
                 //:fps
                 seconds_counter += delta;
