@@ -3,9 +3,9 @@
 const u32 font_height = 48;
 const float32 spriteSheetWidth = 240.0;
 const int tile_width = 16;
-const s32 layer_ui = 30;
 const s32 layer_world = 10;
 const s32 layer_entity = 20;
+const s32 layer_ui = 30;
 const s32 layer_cursor = 50;
 Vector4 bg_box_col = {0, 0, 1.0, 0.9};
 float screen_width = 240.0;
@@ -178,12 +178,12 @@ typedef enum UXState {
 
 //:entity
 typedef enum EntityArchetype{
-    arch_nil = 0,
-    arch_player,
-    arch_cursor,
-    arch_attack,
-    arch_rock,
-    arch_monster,
+    ARCH_nil = 0,
+    ARCH_player,
+    ARCH_cursor,
+    ARCH_attack,
+    ARCH_rock,
+    ARCH_monster,
     ARCH_MAX,
 } EntityArchetype;
 
@@ -223,22 +223,22 @@ void entity_destroy(Entity* entity){
 }
 
 void setup_player(Entity* en) {
-    en->arch = arch_player;
+    en->arch = ARCH_player;
     en->sprite_id = SPRITE_player;
 }
 
 void setup_cursor(Entity* en) {
-    en->arch = arch_cursor;
+    en->arch = ARCH_cursor;
     en->sprite_id = SPRITE_cursor;
 }
 
 void setup_spider(Entity* en) {
-    en->arch = arch_monster;
+    en->arch = ARCH_monster;
     en->sprite_id = SPRITE_spider;
 }
 
 void setup_rock(Entity* en) {
-    en->arch = arch_rock;
+    en->arch = ARCH_rock;
     en->sprite_id = SPRITE_rock;
 }
 
@@ -389,21 +389,33 @@ int entry(int argc, char **argv) {
             Entity* en = &world->entities[i];
             if (en->is_valid){
                 switch (en->arch){
+                    case ARCH_cursor:
+                        {
+                            push_z_layer(layer_cursor);
+                            Sprite* sprite = get_sprite(en->sprite_id);
+                            Matrix4 xform = m4_scalar(1.0);
+                            xform         = m4_translate(xform, v3(0, tile_width * -0.5, 0));
+                            xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
+                            xform         = m4_translate(xform, v3(get_sprite_size(sprite).x * -0.5, 0.0, 0));
+                            Vector4 col = COLOR_WHITE;
+                            draw_image_xform(sprite->image, xform, get_sprite_size(sprite), col);
+                            pop_z_layer();
+                        }
+                        break;
                     default:
+                        { 
+                            Sprite* sprite = get_sprite(en->sprite_id);
+                            Matrix4 xform = m4_scalar(1.0);
+                            xform         = m4_translate(xform, v3(0, tile_width * -0.5, 0));
+                            xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
+                            xform         = m4_translate(xform, v3(get_sprite_size(sprite).x * -0.5, 0.0, 0));
+                            Vector4 col = COLOR_WHITE;
+                            draw_image_xform(sprite->image, xform, get_sprite_size(sprite), col);
+                        }
                         break;
                 }
-                Sprite* sprite = get_sprite(en->sprite_id);
-                Matrix4 xform = m4_scalar(1.0);
-                xform         = m4_translate(xform, v3(0, tile_width * -0.5, 0));
-                xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
-                xform         = m4_translate(xform, v3(get_sprite_size(sprite).x * -0.5, 0.0, 0));
-
-
-                Vector4 col = COLOR_WHITE;
-                draw_image_xform(sprite->image, xform, get_sprite_size(sprite), col);
-
                 // debug pos 
-                draw_text(font, sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
+                //draw_text(font, sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
             }
         }
 
