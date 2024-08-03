@@ -7,7 +7,7 @@ const s32 layer_ui = 30;
 const s32 layer_world = 10;
 const s32 layer_entity = 20;
 const s32 layer_cursor = 50;
-Vector4 bg_box_col = {0, 0, 1.0, 0.5};
+Vector4 bg_box_col = {0, 0, 1.0, 0.9};
 float screen_width = 240.0;
 float screen_height = 135.0;
 
@@ -30,29 +30,52 @@ bool almost_equals(float a, float b, float epsilon) {
  return fabs(a - b) <= epsilon;
 }
 
-//:coordinate conversion
-Draw_Quad ndc_quad_to_screen_quad(Draw_Quad ndc_quad) {
-
-	// NOTE: we're assuming these are the screen space matricies.
-	Matrix4 proj = draw_frame.projection;
-	Matrix4 view = draw_frame.view;
-
-	Matrix4 ndc_to_screen_space = m4_identity;
-	ndc_to_screen_space = m4_mul(ndc_to_screen_space, m4_inverse(proj));
-	ndc_to_screen_space = m4_mul(ndc_to_screen_space, view);
-
-	ndc_quad.bottom_left = m4_transform(ndc_to_screen_space, v4(v2_expand(ndc_quad.bottom_left), 0, 1)).xy;
-	ndc_quad.bottom_right = m4_transform(ndc_to_screen_space, v4(v2_expand(ndc_quad.bottom_right), 0, 1)).xy;
-	ndc_quad.top_left = m4_transform(ndc_to_screen_space, v4(v2_expand(ndc_quad.top_left), 0, 1)).xy;
-	ndc_quad.top_right = m4_transform(ndc_to_screen_space, v4(v2_expand(ndc_quad.top_right), 0, 1)).xy;
-
-	return ndc_quad;
-}
-
 Range2f quad_to_range(Draw_Quad quad) {
 	return (Range2f){quad.bottom_left, quad.top_right};
 }
 
+typedef struct WorldFrame {
+	Matrix4 world_proj;
+	Matrix4 world_view;
+} WorldFrame;
+WorldFrame world_frame;
+
+//:coordinate conversion
+void set_screen_space() {
+	draw_frame.view = m4_scalar(1.0);
+	draw_frame.projection = m4_make_orthographic_projection(0.0, screen_width, 0.0, screen_height, -1, 10);
+}
+void set_world_space() {
+	draw_frame.projection = world_frame.world_proj;
+	draw_frame.view = world_frame.world_view;
+}
+
+Vector2 world_to_screen(Vector2 world_pos){
+    Vector2 screen_pos;
+    return screen_pos;
+}
+Vector2 screen_to_world() {
+	float mouse_x = input_frame.mouse_x;
+	float mouse_y = input_frame.mouse_y;
+	//log("%f, %f", mouse_x, mouse_y);
+	Matrix4 proj = draw_frame.projection;
+	Matrix4 view = draw_frame.view;
+	float window_w = window.width;
+	float window_h = window.height;
+
+	// Normalize the mouse coordinates
+	float ndc_x = (mouse_x / (window_w * 0.5f)) - 1.0f;
+	float ndc_y = (mouse_y / (window_h * 0.5f)) - 1.0f;
+
+	// Transform to world coordinates
+	Vector4 world_pos = v4(ndc_x, ndc_y, 0, 1);
+	world_pos = m4_transform(m4_inverse(proj), world_pos);
+	world_pos = m4_transform(view, world_pos);
+	// log("%f, %f", world_pos.x, world_pos.y);
+
+	// Return as 2D vector
+	return (Vector2){ world_pos.x, world_pos.y };
+}
 
 int world_pos_to_tile_pos(float world_pos) {
 	return roundf(world_pos / (float)tile_width);
@@ -83,35 +106,21 @@ Vector2 get_mouse_pos_in_ndc() {
 	return (Vector2){ ndc_x, ndc_y };
 }
 
-Vector2 screen_to_world() {
-	float mouse_x = input_frame.mouse_x;
-	float mouse_y = input_frame.mouse_y;
+Draw_Quad ndc_quad_to_screen_quad(Draw_Quad ndc_quad) {
+	// NOTE: we're assuming these are the screen space matricies.
 	Matrix4 proj = draw_frame.projection;
 	Matrix4 view = draw_frame.view;
-	float window_w = window.width;
-	float window_h = window.height;
 
-	// Normalize the mouse coordinates
-	float ndc_x = (mouse_x / (window_w * 0.5f)) - 1.0f;
-	float ndc_y = (mouse_y / (window_h * 0.5f)) - 1.0f;
+	Matrix4 ndc_to_screen_space = m4_identity;
+	ndc_to_screen_space = m4_mul(ndc_to_screen_space, m4_inverse(proj));
+	ndc_to_screen_space = m4_mul(ndc_to_screen_space, view);
 
-	// Transform to world coordinates
-	Vector4 world_pos = v4(ndc_x, ndc_y, 0, 1);
-	world_pos = m4_transform(m4_inverse(proj), world_pos);
-	world_pos = m4_transform(view, world_pos);
-	// log("%f, %f", world_pos.x, world_pos.y);
+	ndc_quad.bottom_left = m4_transform(ndc_to_screen_space, v4(v2_expand(ndc_quad.bottom_left), 0, 1)).xy;
+	ndc_quad.bottom_right = m4_transform(ndc_to_screen_space, v4(v2_expand(ndc_quad.bottom_right), 0, 1)).xy;
+	ndc_quad.top_left = m4_transform(ndc_to_screen_space, v4(v2_expand(ndc_quad.top_left), 0, 1)).xy;
+	ndc_quad.top_right = m4_transform(ndc_to_screen_space, v4(v2_expand(ndc_quad.top_right), 0, 1)).xy;
 
-	// Return as 2D vector
-	return (Vector2){ world_pos.x, world_pos.y };
-}
-
-void set_screen_space() {
-	draw_frame.view = m4_scalar(1.0);
-	draw_frame.projection = m4_make_orthographic_projection(0.0, screen_width, 0.0, screen_height, -1, 10);
-}
-void set_world_space() {
-	draw_frame.projection = world_frame.world_proj;
-	draw_frame.view = world_frame.world_view;
+	return ndc_quad;
 }
 
 //:animate
@@ -129,15 +138,6 @@ void animate_v2_to_target(Vector2* value, Vector2 target, float delta_t, float r
 	animate_f32_to_target(&(value->x), target.x, delta_t, rate);
 	animate_f32_to_target(&(value->y), target.y, delta_t, rate);
 }
-
-//:world
-typedef struct World{
-	Entity entities[MAX_ENTITY_COUNT];
-	UXState ux_state;
-	Matrix4 world_proj;
-	Matrix4 world_view;
-} World;
-World* world = 0;
 
 //:sprite
 typedef struct Sprite {
@@ -169,6 +169,13 @@ Vector2 get_sprite_size(Sprite* sprite) {
 	return (Vector2) { sprite->image->width, sprite->image->height };
 }
 
+//:ux state
+typedef enum UXState {
+	UX_nil,
+	UX_default,
+	UX_debug,
+} UXState;
+
 //:entity
 typedef enum EntityArchetype{
     arch_nil = 0,
@@ -187,6 +194,15 @@ typedef struct Entity{
     bool render_sprite;
     SpriteID sprite_id;
 } Entity;
+
+//:world
+typedef struct World{
+	Entity entities[MAX_ENTITY_COUNT];
+	UXState ux_state;
+	Matrix4 world_proj;
+	Matrix4 world_view;
+} World;
+World* world = 0;
 
 Entity* entity_create() {
     Entity* entity_found = 0;
@@ -231,12 +247,23 @@ typedef struct ItemData {
 	int amount;
 } ItemData; 
 
-//:ux state
-typedef enum UXState {
-	UX_nil,
-	UX_default,
-	UX_debug,
-} UXState;
+//:ui rendering
+void render_ui(){
+    set_screen_space();
+	push_z_layer(layer_ui);
+
+    float y_pos = screen_height/3.0f;
+    // bg box
+    {
+        Matrix4 xform = m4_identity;
+        xform = m4_translate(xform, v3(0, y_pos, 0.0));
+        draw_rect_xform(xform, v2(screen_width, -y_pos), bg_box_col);
+    }
+
+    set_world_space();
+	pop_z_layer();
+}
+
 
 //:entry
 int entry(int argc, char **argv) {
@@ -296,12 +323,28 @@ int entry(int argc, char **argv) {
     //:loop
     while (!window.should_close) {
 		reset_temporary_storage();
-        os_update(); 
-
+		world_frame = (WorldFrame){0};
         float64 now = os_get_current_time_in_seconds();
 		float64 delta = now - last_time;
 		last_time = now;	
+        os_update(); 
+
+        //:frame updating
+        draw_frame.enable_z_sorting = true;
+		world_frame.world_proj = m4_make_orthographic_projection(window.width * -0.5, window.width * 0.5, window.height * -0.5, window.height * 0.5, -1, 10);
         
+        
+        //:camera
+		{
+			world_frame.world_view = m4_make_scale(v3(1.0, 1.0, 1.0));
+			world_frame.world_view = m4_mul(world_frame.world_view, m4_make_scale(v3(1.0/zoom, 1.0/zoom, 1.0)));
+		}
+		set_world_space();
+		push_z_layer(layer_world);
+
+
+        render_ui();
+
         //:input
         Vector2 input_axis = v2(0, 0);
         float32 dash_speed = 1.0;
@@ -322,11 +365,7 @@ int entry(int argc, char **argv) {
         }
         input_axis = v2_normalize(input_axis);
         cursor_en->pos = v2_add(cursor_en->pos, v2_mulf(input_axis, input_speed * delta ));
-    
-        //:camera
-        draw_frame.projection = m4_make_orthographic_projection(window.width * -0.5, window.width * 0.5, window.height * -0.5, window.height * 0.5, -1, 10);
-        draw_frame.view = m4_mul(draw_frame.view, m4_make_scale(v3(1.0/zoom, 1.0/zoom, 1.0)));
-		
+
         //:tile rendering
 		{
 			int player_tile_x = world_pos_to_tile_pos(player_en->pos.x);
@@ -345,32 +384,7 @@ int entry(int argc, char **argv) {
 			}
 		}
 
-        //:ui rendering
-		{
-			float width = window.width;
-			float height = window.height / 3.0f;
-
-            // bg box 
-            {
-                Matrix4 xform = draw_frame.view;
-                draw_rect_xform(xform, v2(width, height), bg_box_col);
-                //:fps
-                seconds_counter += delta;
-                frame_count+=1;
-                if(seconds_counter > 1.0){
-                    last_fps = frame_count;
-                    log("fps: %i", last_fps );
-                    frame_count = 0;
-                    seconds_counter = 0.0;
-                }
-                string text = STR("fps: %i");
-                text = sprint(temp_allocator, text, last_fps);
-                //draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
-            }
-
-		}
-
-        //:entity rendering
+       //:entity rendering
         for (int i = 0; i < MAX_ENTITY_COUNT; i++){
             Entity* en = &world->entities[i];
             if (en->is_valid){
@@ -393,7 +407,20 @@ int entry(int argc, char **argv) {
             }
         }
 
-		gfx_update();
+        //:fps
+        seconds_counter += delta;
+        frame_count+=1;
+        if(seconds_counter > 1.0){
+            last_fps = frame_count;
+            log("fps: %i", last_fps );
+            frame_count = 0;
+            seconds_counter = 0.0;
+        }
+        string text = STR("fps: %i");
+        text = sprint(temp_allocator, text, last_fps);
+        //draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
+	
+        gfx_update();
        
 	}
 
