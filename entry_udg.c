@@ -302,16 +302,20 @@ int entry(int argc, char **argv) {
 	
 	float32 input_speed = 150.0;
 
-    Entity* player_en = entity_create();
-    setup_player(player_en);
-
     Entity* cursor_en = entity_create();
     setup_cursor(cursor_en);
 
+    for (int i = 0; i < 4; i++) {
+		Entity* en = entity_create();
+		setup_player(en);
+		en->pos = v2(get_random_float32_in_range(-20, 20), get_random_float32_in_range(-80, 80));
+		en->pos = round_v2_to_tile(en->pos);
+	}
+
     for (int i = 0; i < 10; i++) {
 		Entity* en = entity_create();
-		setup_rock(en);
-		en->pos = v2(get_random_float32_in_range(-200, 200), get_random_float32_in_range(-200, 200));
+		setup_bat(en);
+		en->pos = v2(get_random_float32_in_range(-100, 100), get_random_float32_in_range(-80, 80));
 		en->pos = round_v2_to_tile(en->pos);
 	}
 
@@ -368,8 +372,8 @@ int entry(int argc, char **argv) {
 
         //:tile rendering
 		{
-			int player_tile_x = world_pos_to_tile_pos(player_en->pos.x);
-			int player_tile_y = world_pos_to_tile_pos(player_en->pos.y);
+			int player_tile_x = world_pos_to_tile_pos(0);
+			int player_tile_y = world_pos_to_tile_pos(0);
 			int tile_radius_x = 40;
 			int tile_radius_y = 30;
 			for (int x = player_tile_x - tile_radius_x; x < player_tile_x + tile_radius_x; x++) {
