@@ -161,9 +161,6 @@ typedef enum SpriteID {
     SPRITE_cursor,
     SPRITE_target,
     SPRITE_attack,
-    SPRITE_rock,
-    SPRITE_spider,
-    SPRITE_bat,
     SPRITE_MAX,
 } SpriteID;
 Sprite sprites[SPRITE_MAX];
@@ -200,7 +197,7 @@ typedef enum UXCommandPos {
     CMD_MAX,
 } UXCommandPos;
 
-//:meter
+//:bar
 typedef struct Bar {
     float64 max;
     float64 current;
@@ -213,7 +210,6 @@ typedef enum EntityArchetype{
     ARCH_player,
     ARCH_cursor,
     ARCH_attack,
-    ARCH_rock,
     ARCH_monster,
     ARCH_MAX,
 } EntityArchetype;
@@ -234,6 +230,7 @@ typedef struct Entity{
 //:world
 typedef struct World{
 	Entity entities[MAX_ENTITY_COUNT];
+	Entity* entity_selected;
 	UXState ux_state;
 	UXCommandPos ux_cmd_pos;
 	Matrix4 world_proj;
@@ -303,9 +300,6 @@ int entry(int argc, char **argv) {
     sprites[SPRITE_cursor] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\cursor.png"), get_heap_allocator()) };
     sprites[SPRITE_target] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\target.png"), get_heap_allocator()) };
     sprites[SPRITE_attack] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\attack.png"), get_heap_allocator()) };
-    sprites[SPRITE_rock] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\rock.png"), get_heap_allocator()) };
-    sprites[SPRITE_spider] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\spider.png"), get_heap_allocator()) };
-    sprites[SPRITE_bat] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\bat.png"), get_heap_allocator()) };
 	
     // @ship debug this off
 	{
@@ -323,7 +317,7 @@ int entry(int argc, char **argv) {
     setup_cursor(cursor_en);
 
         
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 1; i++) {
 		Entity* en = entity_create();
 		setup_player(en);
         en->name = sprint(temp_allocator, STR("player%f"), i);
@@ -357,26 +351,83 @@ int entry(int argc, char **argv) {
         draw_frame.enable_z_sorting = true;
 		world_frame.world_proj = m4_make_orthographic_projection(window.width * -0.5, window.width * 0.5, window.height * -0.5, window.height * 0.5, -1, 10);
         
-        
         //:camera
 		{
 			world_frame.world_view = m4_make_scale(v3(1.0, 1.0, 1.0));
 			world_frame.world_view = m4_mul(world_frame.world_view, m4_make_scale(v3(1.0/zoom, 1.0/zoom, 1.0)));
 		}
-		set_world_space();
-		push_z_layer(layer_world);
 
-        //:input
-        if (is_key_just_pressed(KEY_ESCAPE)){
-            window.should_close = true;
+        //:tile rendering
+		{
+		    set_world_space();
+		    push_z_layer(layer_world);
+
+			int player_tile_x = world_pos_to_tile_pos(0);
+			int player_tile_y = world_pos_to_tile_pos(0);
+			int tile_radius_x = 40;
+			int tile_radius_y = 30;
+			for (int x = player_tile_x - tile_radius_x; x < player_tile_x + tile_radius_x; x++) {
+				for (int y = player_tile_y - tile_radius_y; y < player_tile_y + tile_radius_y; y++) {
+					if ((x + (y % 2 == 0) ) % 2 == 0) {
+						Vector4 col = v4(0.6, 0.6, 0.6, 0.6);
+						float x_pos = x * tile_width;
+						float y_pos = y * tile_width;
+						draw_rect(v2(x_pos + tile_width * -0.5, y_pos + tile_width * -0.5), v2(tile_width, tile_width), col);
+					}
+				}
+			}
+            pop_z_layer();
+		}
+
+        //:entity rendering
+        {
+		    set_world_space();
+            push_z_layer(layer_world);
+
+            for (int i = 0; i < MAX_ENTITY_COUNT; i++){
+                Entity* en = &world->entities[i];
+                if (en->is_valid){
+                    switch (en->arch){
+                        case ARCH_cursor:
+                            {
+                                push_z_layer(layer_cursor);
+                                Sprite* sprite = get_sprite(en->sprite_id);
+                                Matrix4 xform = m4_scalar(1.0);
+                                xform         = m4_translate(xform, v3(0, tile_width * -0.5, 0));
+                                xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
+                                xform         = m4_translate(xform, v3(get_sprite_size(sprite).x * -0.5, 0.0, 0));
+                                Vector4 col = COLOR_WHITE;
+                                draw_image_xform(sprite->image, xform, get_sprite_size(sprite), col);
+                                pop_z_layer();
+                            }
+                            break;
+                        case ARCH_player:
+                            {
+                                push_z_layer(layer_ui);
+                                Matrix4 xform = m4_scalar(1.0);
+                                xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
+                                draw_rect_xform(xform, v2(en->time.max * 0.1, 10.0), COLOR_RED);
+                                draw_rect_xform(xform, v2(en->time.current * 0.1, 10.0), COLOR_GREEN);
+                            }
+                        default:
+                            { 
+                                Sprite* sprite = get_sprite(en->sprite_id);
+                                Matrix4 xform = m4_scalar(1.0);
+                                xform         = m4_translate(xform, v3(0, tile_width * -0.5, 0));
+                                xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
+                                xform         = m4_translate(xform, v3(get_sprite_size(sprite).x * -0.5, 0.0, 0));
+                                Vector4 col = COLOR_WHITE;
+                                draw_image_xform(sprite->image, xform, get_sprite_size(sprite), col);
+                            }
+                            en->time.current = (en->time.current + (en->time.rate * delta) >= en->time.max)? en->time.max: en->time.current + (en->time.rate * delta);
+                            break;
+                    }
+                    // debug pos 
+                    //draw_text(font, sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
+                }
+            }
+            pop_z_layer();
         }
-		if (is_key_just_pressed('S')) {
-            world->ux_cmd_pos = (world->ux_cmd_pos + 1) % CMD_MAX;
-        }
-        else if (is_key_just_pressed('W')) {
-             world->ux_cmd_pos = (world->ux_cmd_pos - 1) % CMD_MAX;
-        }
-        world->ux_cmd_pos = (world->ux_cmd_pos < 0)? CMD_MAX - 1: world->ux_cmd_pos;
 
         //:ui rendering
         {
@@ -404,86 +455,43 @@ int entry(int argc, char **argv) {
                 cursor_en->pos = v2(0, -1.0 * world->ux_cmd_pos * 10.0);
             }
 
-            set_world_space();
             pop_z_layer();
         }
 
 
-        //:tile rendering
-		{
-			int player_tile_x = world_pos_to_tile_pos(0);
-			int player_tile_y = world_pos_to_tile_pos(0);
-			int tile_radius_x = 40;
-			int tile_radius_y = 30;
-			for (int x = player_tile_x - tile_radius_x; x < player_tile_x + tile_radius_x; x++) {
-				for (int y = player_tile_y - tile_radius_y; y < player_tile_y + tile_radius_y; y++) {
-					if ((x + (y % 2 == 0) ) % 2 == 0) {
-						Vector4 col = v4(0.6, 0.6, 0.6, 0.6);
-						float x_pos = x * tile_width;
-						float y_pos = y * tile_width;
-						draw_rect(v2(x_pos + tile_width * -0.5, y_pos + tile_width * -0.5), v2(tile_width, tile_width), col);
-					}
-				}
-			}
-		}
-
-        //:entity rendering
-        for (int i = 0; i < MAX_ENTITY_COUNT; i++){
-            Entity* en = &world->entities[i];
-            if (en->is_valid){
-                switch (en->arch){
-                    case ARCH_cursor:
-                        {
-                            push_z_layer(layer_cursor);
-                            Sprite* sprite = get_sprite(en->sprite_id);
-                            Matrix4 xform = m4_scalar(1.0);
-                            xform         = m4_translate(xform, v3(0, tile_width * -0.5, 0));
-                            xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
-                            xform         = m4_translate(xform, v3(get_sprite_size(sprite).x * -0.5, 0.0, 0));
-                            Vector4 col = COLOR_WHITE;
-                            draw_image_xform(sprite->image, xform, get_sprite_size(sprite), col);
-                            pop_z_layer();
-                        }
-                        break;
-                    case ARCH_player:
-                        {
-                            push_z_layer(layer_ui);
-                            Matrix4 xform = m4_scalar(1.0);
-                            xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
-                            draw_rect_xform(xform, v2(en->time.max * 0.1, 10.0), COLOR_RED);
-                            draw_rect_xform(xform, v2(en->time.current * 0.1, 10.0), COLOR_GREEN);
-                        }
-                    default:
-                        { 
-                            Sprite* sprite = get_sprite(en->sprite_id);
-                            Matrix4 xform = m4_scalar(1.0);
-                            xform         = m4_translate(xform, v3(0, tile_width * -0.5, 0));
-                            xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
-                            xform         = m4_translate(xform, v3(get_sprite_size(sprite).x * -0.5, 0.0, 0));
-                            Vector4 col = COLOR_WHITE;
-                            draw_image_xform(sprite->image, xform, get_sprite_size(sprite), col);
-                        }
-                        en->time.current = (en->time.current + (en->time.rate * delta) >= en->time.max)? en->time.max: en->time.current + (en->time.rate * delta);
-                        break;
-                }
-                // debug pos 
-                //draw_text(font, sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
-            }
+        //:input
+        if (is_key_just_pressed(KEY_ESCAPE)){
+            window.should_close = true;
         }
+		if (is_key_just_pressed('S')) {
+            world->ux_cmd_pos = (world->ux_cmd_pos + 1) % CMD_MAX;
+        }
+        else if (is_key_just_pressed('W')) {
+             world->ux_cmd_pos = (world->ux_cmd_pos - 1) % CMD_MAX;
+        }
+        world->ux_cmd_pos = (world->ux_cmd_pos < 0)? CMD_MAX - 1: world->ux_cmd_pos;
+
+
 
         //:fps
-        seconds_counter += delta;
-        frame_count+=1;
-        if(seconds_counter > 1.0){
-            last_fps = frame_count;
-            log("fps: %i", last_fps );
-            frame_count = 0;
-            seconds_counter = 0.0;
+        {
+            set_screen_space();
+            push_z_layer(layer_text);
+
+            seconds_counter += delta;
+            frame_count+=1;
+            if(seconds_counter > 1.0){
+                last_fps = frame_count;
+                frame_count = 0;
+                seconds_counter = 0.0;
+            }
+            string text = STR("fps: %i");
+            text = sprint(temp_allocator, text, last_fps);
+            Matrix4 xform = m4_identity;
+            xform = m4_translate(xform, v3(0, screen_height - (font_height + font_padding) * 0.1, 0.0));
+            draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
         }
-        string text = STR("fps: %i");
-        text = sprint(temp_allocator, text, last_fps);
-        //draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
-	
+
         gfx_update();
        
 	}
