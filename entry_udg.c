@@ -200,6 +200,13 @@ typedef enum UXCommandPos {
     CMD_MAX,
 } UXCommandPos;
 
+//:meter
+typedef struct Bar {
+    float64 max;
+    float64 current;
+    float64 rate;
+} Bar;
+
 //:entity
 typedef enum EntityArchetype{
     ARCH_nil = 0,
@@ -218,13 +225,9 @@ typedef struct Entity{
     SpriteID sprite_id;
     bool render_sprite;
     Vector2 pos;
-    float64 health_current;
-    float64 health_max;
-    float64 mana_current;
-    float64 mana_max;
-    float64 time_current;
-    float64 time_max;
-    float64 time_rate;
+    Bar health;
+    Bar mana;
+    Bar time;
     float64 limit;
 } Entity;
 
@@ -259,34 +262,18 @@ void entity_destroy(Entity* entity){
 void setup_player(Entity* en) {
     en->arch = ARCH_player;
     en->sprite_id = SPRITE_player;
-    en->health_max = player_hp_max;
-    en->health_current = en->health_max;
-    en->mana_max = player_mp_max;
-    en->mana_current = en->mana_max;
-    en->time_max = player_tp_max;
-    en->time_current = 0;
-    en->time_rate = player_tp_rate;
+    en->health.max = player_hp_max;
+    en->health.current = en->health.max;
+    en->mana.max = player_mp_max;
+    en->mana.current = en->mana.max;
+    en->time.max = player_tp_max;
+    en->time.current = 0;
+    en->time.rate = player_tp_rate;
 }
 
 void setup_cursor(Entity* en) {
     en->arch = ARCH_cursor;
     en->sprite_id = SPRITE_cursor;
-}
-
-void setup_monster(Entity* en) {
-    en->arch = ARCH_monster;
-    en->sprite_id = SPRITE_bat;
-    en->health_max = monster_hp_max;
-    en->health_current = en->health_max;
-    en->mana_max = monster_mp_max;
-    en->mana_current = en->mana_max;
-    en->time_max = monster_tp_max;
-    en->time_current = 0;
-}
-
-void setup_rock(Entity* en) {
-    en->arch = ARCH_rock;
-    en->sprite_id = SPRITE_rock;
 }
 
 //:item data
@@ -462,8 +449,8 @@ int entry(int argc, char **argv) {
                             push_z_layer(layer_ui);
                             Matrix4 xform = m4_scalar(1.0);
                             xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
-                            draw_rect_xform(xform, v2(en->time_max * 0.1, 10.0), COLOR_RED);
-                            draw_rect_xform(xform, v2(en->time_current * 0.1, 10.0), COLOR_GREEN);
+                            draw_rect_xform(xform, v2(en->time.max * 0.1, 10.0), COLOR_RED);
+                            draw_rect_xform(xform, v2(en->time.current * 0.1, 10.0), COLOR_GREEN);
                         }
                     default:
                         { 
@@ -475,7 +462,7 @@ int entry(int argc, char **argv) {
                             Vector4 col = COLOR_WHITE;
                             draw_image_xform(sprite->image, xform, get_sprite_size(sprite), col);
                         }
-                        en->time_current = (en->time_current + (en->time_rate * delta) >= en->time_max)? en->time_max: en->time_current + (en->time_rate * delta);
+                        en->time.current = (en->time.current + (en->time.rate * delta) >= en->time.max)? en->time.max: en->time.current + (en->time.rate * delta);
                         break;
                 }
                 // debug pos 
