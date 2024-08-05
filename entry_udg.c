@@ -16,7 +16,7 @@ float screen_height = 135.0;
 float64 player_hp_max = 100;
 float64 player_mp_max = 25;
 float64 player_tp_max = 300;
-float64 player_tp_rate = 15;
+float64 player_tp_rate = 30;
 float64 monster_hp_max = 50;
 float64 monster_mp_max = 15;
 float64 monster_tp_max = 300;
@@ -329,6 +329,7 @@ int entry(int argc, char **argv) {
         en->name = sprint(temp_allocator, STR("player%f"), i);
 		en->pos = v2(0, 20*i);
 		en->pos = round_v2_to_tile(en->pos);
+        en->time.current = get_random_float32_in_range(en->time.max * 0.1, en->time.max * 0.4);
 	}
 
     //for (int i = 0; i < 10; i++) {
