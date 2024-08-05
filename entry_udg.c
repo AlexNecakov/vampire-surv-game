@@ -457,6 +457,14 @@ int entry(int argc, char **argv) {
                             pop_z_layer();
                         }
                         break;
+                    case ARCH_player:
+                        {
+                            push_z_layer(layer_ui);
+                            Matrix4 xform = m4_scalar(1.0);
+                            xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
+                            draw_rect_xform(xform, v2(en->time_max * 0.1, 10.0), COLOR_RED);
+                            draw_rect_xform(xform, v2(en->time_current * 0.1, 10.0), COLOR_GREEN);
+                        }
                     default:
                         { 
                             Sprite* sprite = get_sprite(en->sprite_id);
