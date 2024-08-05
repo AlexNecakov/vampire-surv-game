@@ -13,13 +13,14 @@ Vector4 bg_box_col = {0, 0, 1.0, 0.9};
 float screen_width = 240.0;
 float screen_height = 135.0;
 
-s32 player_hp_max = 100;
-s32 player_mp_max = 25;
-s32 player_tp_max = 300;
-s32 monster_hp_max = 50;
-s32 monster_mp_max = 15;
-s32 monster_tp_max = 300;
-
+float64 player_hp_max = 100;
+float64 player_mp_max = 25;
+float64 player_tp_max = 300;
+float64 player_tp_rate = 15;
+float64 monster_hp_max = 50;
+float64 monster_mp_max = 15;
+float64 monster_tp_max = 300;
+float64 monster_tp_rate = 5;
 
 //:math
 #define m4_identity m4_make_scale(v3(1, 1, 1))
@@ -217,13 +218,14 @@ typedef struct Entity{
     SpriteID sprite_id;
     bool render_sprite;
     Vector2 pos;
-    s32 health_current;
-    s32 health_max;
-    s32 mana_current;
-    s32 mana_max;
-    u32 time_current;
-    u32 time_max;
-    u32 limit;
+    float64 health_current;
+    float64 health_max;
+    float64 mana_current;
+    float64 mana_max;
+    float64 time_current;
+    float64 time_max;
+    float64 time_rate;
+    float64 limit;
 } Entity;
 
 //:world
@@ -263,6 +265,7 @@ void setup_player(Entity* en) {
     en->mana_current = en->mana_max;
     en->time_max = player_tp_max;
     en->time_current = 0;
+    en->time_rate = player_tp_rate;
 }
 
 void setup_cursor(Entity* en) {
@@ -341,12 +344,12 @@ int entry(int argc, char **argv) {
 		en->pos = round_v2_to_tile(en->pos);
 	}
 
-    for (int i = 0; i < 10; i++) {
-		Entity* en = entity_create();
-		setup_monster(en);
-		en->pos = v2(get_random_float32_in_range(-180, -50), get_random_float32_in_range(0, 100));
-		en->pos = round_v2_to_tile(en->pos);
-	}
+    //for (int i = 0; i < 10; i++) {
+    //    Entity* en = entity_create();
+    //    setup_monster(en);
+    //    en->pos = v2(get_random_float32_in_range(-180, -50), get_random_float32_in_range(0, 100));
+    //    en->pos = round_v2_to_tile(en->pos);
+    //}
 
     float64 seconds_counter = 0.0;
     s32 frame_count = 0;
@@ -376,7 +379,6 @@ int entry(int argc, char **argv) {
 		push_z_layer(layer_world);
 
         //:input
-        Vector2 input_axis = v2(0, 0);
         if (is_key_just_pressed(KEY_ESCAPE)){
             window.should_close = true;
         }
@@ -437,7 +439,7 @@ int entry(int argc, char **argv) {
 			}
 		}
 
-       //:entity rendering
+        //:entity rendering
         for (int i = 0; i < MAX_ENTITY_COUNT; i++){
             Entity* en = &world->entities[i];
             if (en->is_valid){
@@ -465,6 +467,7 @@ int entry(int argc, char **argv) {
                             Vector4 col = COLOR_WHITE;
                             draw_image_xform(sprite->image, xform, get_sprite_size(sprite), col);
                         }
+                        en->time_current = (en->time_current + (en->time_rate * delta) >= en->time_max)? en->time_max: en->time_current + (en->time_rate * delta);
                         break;
                 }
                 // debug pos 
