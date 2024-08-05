@@ -373,57 +373,54 @@ int entry(int argc, char **argv) {
             pop_z_layer();
 		}
 
-        //:entity rendering
+        //:entity loop 
         {
 		    set_world_space();
-            push_z_layer(layer_world);
 
             for (int i = 0; i < MAX_ENTITY_COUNT; i++){
                 Entity* en = &world->entities[i];
                 if (en->is_valid){
                     switch (en->arch){
                         case ARCH_cursor:
-                            {
-                                push_z_layer(layer_cursor);
-                                Sprite* sprite = get_sprite(en->sprite_id);
-                                Matrix4 xform = m4_scalar(1.0);
-                                xform         = m4_translate(xform, v3(0, tile_width * -0.5, 0));
-                                xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
-                                xform         = m4_translate(xform, v3(get_sprite_size(sprite).x * -0.5, 0.0, 0));
-                                Vector4 col = COLOR_WHITE;
-                                draw_image_xform(sprite->image, xform, get_sprite_size(sprite), col);
-                                pop_z_layer();
-                            }
+                            push_z_layer(layer_cursor);
                             break;
                         case ARCH_player:
-                            {
+                            //:time bar
+                            {    
                                 push_z_layer(layer_ui);
-                                Matrix4 xform = m4_scalar(1.0);
-                                xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
-                                draw_rect_xform(xform, v2(en->time.max * 0.1, 10.0), COLOR_RED);
-                                draw_rect_xform(xform, v2(en->time.current * 0.1, 10.0), COLOR_GREEN);
-                            }
-                        default:
-                            { 
                                 Sprite* sprite = get_sprite(en->sprite_id);
                                 Matrix4 xform = m4_scalar(1.0);
-                                xform         = m4_translate(xform, v3(0, tile_width * -0.5, 0));
-                                xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
-                                xform         = m4_translate(xform, v3(get_sprite_size(sprite).x * -0.5, 0.0, 0));
-                                Vector4 col = COLOR_WHITE;
-                                draw_image_xform(sprite->image, xform, get_sprite_size(sprite), col);
+                                xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
+                                xform = m4_translate(xform, v3(-0.5 * get_sprite_size(sprite).x, -.6 * get_sprite_size(sprite).y, 0));
+                                draw_rect_xform(xform, v2(en->time.max * 0.1, 2.5), COLOR_RED);
+                                draw_rect_xform(xform, v2(en->time.current * 0.1, 2.5), COLOR_GREEN);
+                                pop_z_layer();
                             }
-                            en->time.current = (en->time.current + (en->time.rate * delta) >= en->time.max)? en->time.max: en->time.current + (en->time.rate * delta);
+                            push_z_layer(layer_world);
+                            break;
+                        default:
+                            push_z_layer(layer_world);
                             break;
                     }
+                    //:sprite 
+                    {
+                        Sprite* sprite = get_sprite(en->sprite_id);
+                        Matrix4 xform = m4_scalar(1.0);
+                        xform         = m4_translate(xform, v3(0, tile_width * -0.5, 0));
+                        xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
+                        xform         = m4_translate(xform, v3(get_sprite_size(sprite).x * -0.5, 0.0, 0));
+                        Vector4 col = COLOR_WHITE;
+                        draw_image_xform(sprite->image, xform, get_sprite_size(sprite), col);
+                        pop_z_layer();
+                    }
+                    en->time.current = (en->time.current + (en->time.rate * delta) >= en->time.max)? en->time.max: en->time.current + (en->time.rate * delta);
                     // debug pos 
                     //draw_text(font, sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
                 }
             }
-            pop_z_layer();
         }
 
-        //:ui rendering
+        //:ui loop 
         {
             set_screen_space();
             push_z_layer(layer_ui);
