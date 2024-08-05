@@ -411,11 +411,11 @@ int entry(int argc, char **argv) {
                         xform         = m4_translate(xform, v3(get_sprite_size(sprite).x * -0.5, 0.0, 0));
                         Vector4 col = COLOR_WHITE;
                         draw_image_xform(sprite->image, xform, get_sprite_size(sprite), col);
+                        // debug pos 
+                        //draw_text(font, sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
                         pop_z_layer();
                     }
                     en->time.current = (en->time.current + (en->time.rate * delta) >= en->time.max)? en->time.max: en->time.current + (en->time.rate * delta);
-                    // debug pos 
-                    //draw_text(font, sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
                 }
             }
         }
