@@ -13,6 +13,14 @@ Vector4 bg_box_col = {0, 0, 1.0, 0.9};
 float screen_width = 240.0;
 float screen_height = 135.0;
 
+s32 player_hp_max = 100;
+s32 player_mp_max = 25;
+s32 player_tp_max = 300;
+s32 monster_hp_max = 50;
+s32 monster_mp_max = 15;
+s32 monster_tp_max = 300;
+
+
 //:math
 #define m4_identity m4_make_scale(v3(1, 1, 1))
 
@@ -177,8 +185,19 @@ Vector2 get_sprite_size(Sprite* sprite) {
 typedef enum UXState {
 	UX_nil,
 	UX_default,
+	UX_command,
+	UX_attack,
+	UX_spell,
+	UX_item,
 	UX_debug,
 } UXState;
+
+typedef enum UXCommandPos {
+    CMD_attack = 0,
+    CMD_spell,
+    CMD_item,
+    CMD_MAX,
+} UXCommandPos;
 
 //:entity
 typedef enum EntityArchetype{
@@ -194,15 +213,24 @@ typedef enum EntityArchetype{
 typedef struct Entity{
     bool is_valid;
     EntityArchetype arch;
-    Vector2 pos;
-    bool render_sprite;
+	string name;
     SpriteID sprite_id;
+    bool render_sprite;
+    Vector2 pos;
+    s32 health_current;
+    s32 health_max;
+    s32 mana_current;
+    s32 mana_max;
+    u32 time_current;
+    u32 time_max;
+    u32 limit;
 } Entity;
 
 //:world
 typedef struct World{
 	Entity entities[MAX_ENTITY_COUNT];
 	UXState ux_state;
+	UXCommandPos ux_cmd_pos;
 	Matrix4 world_proj;
 	Matrix4 world_view;
 } World;
@@ -229,6 +257,12 @@ void entity_destroy(Entity* entity){
 void setup_player(Entity* en) {
     en->arch = ARCH_player;
     en->sprite_id = SPRITE_player;
+    en->health_max = player_hp_max;
+    en->health_current = en->health_max;
+    en->mana_max = player_mp_max;
+    en->mana_current = en->mana_max;
+    en->time_max = player_tp_max;
+    en->time_current = 0;
 }
 
 void setup_cursor(Entity* en) {
@@ -239,6 +273,12 @@ void setup_cursor(Entity* en) {
 void setup_monster(Entity* en) {
     en->arch = ARCH_monster;
     en->sprite_id = SPRITE_bat;
+    en->health_max = monster_hp_max;
+    en->health_current = en->health_max;
+    en->mana_max = monster_mp_max;
+    en->mana_current = en->mana_max;
+    en->time_max = monster_tp_max;
+    en->time_current = 0;
 }
 
 void setup_rock(Entity* en) {
@@ -265,7 +305,8 @@ int entry(int argc, char **argv) {
     
     world = alloc(get_heap_allocator(), sizeof(World));
     memset(world, 0, sizeof(World));
-    world->ux_state = UX_default;
+    world->ux_state = UX_command;
+    world->ux_cmd_pos = CMD_attack;
 
     sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\undefined.png"), get_heap_allocator()) };
     sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\dude.png"), get_heap_allocator()) };
@@ -288,22 +329,22 @@ int entry(int argc, char **argv) {
 	assert(font, "Failed loading arial.ttf, %d", GetLastError());	
 	render_atlas_if_not_yet_rendered(font, 32, 'A');
 	
-	float32 input_speed = 150.0;
-
     Entity* cursor_en = entity_create();
     setup_cursor(cursor_en);
 
+        
     for (int i = 0; i < 4; i++) {
 		Entity* en = entity_create();
 		setup_player(en);
-		en->pos = v2(get_random_float32_in_range(-20, 20), get_random_float32_in_range(-80, 80));
+        en->name = sprint(temp_allocator, STR("player%f"), i);
+		en->pos = v2(0, 20*i);
 		en->pos = round_v2_to_tile(en->pos);
 	}
 
     for (int i = 0; i < 10; i++) {
 		Entity* en = entity_create();
 		setup_monster(en);
-		en->pos = v2(get_random_float32_in_range(-100, 100), get_random_float32_in_range(-80, 80));
+		en->pos = v2(get_random_float32_in_range(-180, -50), get_random_float32_in_range(0, 100));
 		en->pos = round_v2_to_tile(en->pos);
 	}
 
@@ -334,6 +375,18 @@ int entry(int argc, char **argv) {
 		set_world_space();
 		push_z_layer(layer_world);
 
+        //:input
+        Vector2 input_axis = v2(0, 0);
+        if (is_key_just_pressed(KEY_ESCAPE)){
+            window.should_close = true;
+        }
+		if (is_key_just_pressed('S')) {
+            world->ux_cmd_pos = (world->ux_cmd_pos + 1) % CMD_MAX;
+        }
+        else if (is_key_just_pressed('W')) {
+             world->ux_cmd_pos = (world->ux_cmd_pos - 1) % CMD_MAX;
+        }
+        world->ux_cmd_pos = (world->ux_cmd_pos < 0)? CMD_MAX - 1: world->ux_cmd_pos;
 
         //:ui rendering
         {
@@ -358,33 +411,13 @@ int entry(int argc, char **argv) {
                 xform = m4_translate(xform, v3(0, - (font_height + font_padding)* 0.1, 0.0));
                 draw_text_xform(font, STR("Items"), font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
                 pop_z_layer();
+                cursor_en->pos = v2(0, -1.0 * world->ux_cmd_pos * 10.0);
             }
 
             set_world_space();
             pop_z_layer();
         }
 
-
-        //:input
-        Vector2 input_axis = v2(0, 0);
-        float32 dash_speed = 1.0;
-        if (is_key_just_pressed(KEY_ESCAPE)){
-            window.should_close = true;
-        }
-        if (is_key_down('W')) {
-            input_axis.y += 1.0;
-        }
-        if (is_key_down('A')) {
-            input_axis.x -= 1.0;
-        }
-        if (is_key_down('S')) {
-            input_axis.y -= 1.0;
-        }
-        if (is_key_down('D')) {
-            input_axis.x += 1.0;
-        }
-        input_axis = v2_normalize(input_axis);
-        cursor_en->pos = v2_add(cursor_en->pos, v2_mulf(input_axis, input_speed * delta ));
 
         //:tile rendering
 		{
