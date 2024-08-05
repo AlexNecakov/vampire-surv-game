@@ -29,20 +29,12 @@ inline float v2_dist(Vector2 a, Vector2 b) {
     return v2_length(v2_sub(a, b));
 }
 
-Vector2 range2f_get_center(Range2f r) {
-	return (Vector2) { (r.max.x - r.min.x) * 0.5 + r.min.x, (r.max.y - r.min.y) * 0.5 + r.min.y };
-}
-
 float sin_breathe(float time, float rate) {
 	return (sin(time * rate) + 1.0) / 2.0;
 }
 
 bool almost_equals(float a, float b, float epsilon) {
  return fabs(a - b) <= epsilon;
-}
-
-Range2f quad_to_range(Draw_Quad quad) {
-	return (Range2f){quad.bottom_left, quad.top_right};
 }
 
 //:coordinate conversion
