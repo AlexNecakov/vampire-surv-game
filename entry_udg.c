@@ -235,6 +235,7 @@ typedef struct World{
 	UXCommandPos ux_cmd_pos;
 	Matrix4 world_proj;
 	Matrix4 world_view;
+    bool debug_render;
 } World;
 World* world = 0;
 
@@ -294,6 +295,7 @@ int entry(int argc, char **argv) {
     memset(world, 0, sizeof(World));
     world->ux_state = UX_command;
     world->ux_cmd_pos = CMD_attack;
+    world->debug_render = true;
 
     sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\undefined.png"), get_heap_allocator()) };
     sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\dude.png"), get_heap_allocator()) };
@@ -463,18 +465,16 @@ int entry(int argc, char **argv) {
         if (is_key_just_pressed(KEY_ESCAPE)){
             window.should_close = true;
         }
-		if (is_key_just_pressed('S')) {
+		if (is_key_just_pressed('J')) {
             world->ux_cmd_pos = (world->ux_cmd_pos + 1) % CMD_MAX;
         }
-        else if (is_key_just_pressed('W')) {
+        else if (is_key_just_pressed('K')) {
              world->ux_cmd_pos = (world->ux_cmd_pos - 1) % CMD_MAX;
         }
         world->ux_cmd_pos = (world->ux_cmd_pos < 0)? CMD_MAX - 1: world->ux_cmd_pos;
 
-
-
         //:fps
-        {
+        if(world->debug_render){
             set_screen_space();
             push_z_layer(layer_text);
 
@@ -493,7 +493,6 @@ int entry(int argc, char **argv) {
         }
 
         gfx_update();
-       
 	}
 
 	return 0;
