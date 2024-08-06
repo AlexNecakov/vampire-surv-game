@@ -294,6 +294,8 @@ void setup_player(Entity* en) {
 void setup_cursor(Entity* en) {
     en->arch = ARCH_cursor;
     en->sprite_id = SPRITE_cursor;
+    en->health.max = 1;
+    en->health.current = 1;
 }
 
 void setup_monster(Entity* en) {
@@ -354,7 +356,6 @@ int entry(int argc, char **argv) {
 	
     Entity* cursor_en = entity_create();
     setup_cursor(cursor_en);
-    log("created entity %i = %i", 0, cursor_en->arch);
         
     for (int i = 0; i < 1; i++) {
 		Entity* en = entity_create();
@@ -363,15 +364,13 @@ int entry(int argc, char **argv) {
 		en->pos = v2(0, 20*i);
 		en->pos = round_v2_to_tile(en->pos);
         en->time.current = get_random_float32_in_range(en->time.max * 0.1, en->time.max * 0.4);
-    log("created entity %i = %i", 1, en->arch);
 	}
 
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 4; i++) {
         Entity* en = entity_create();
         setup_monster(en);
-        en->pos = v2(get_random_float32_in_range(-120, -50), get_random_float32_in_range(0, 100));
+        en->pos = v2(-4 * tile_width, i * tile_width);
         en->pos = round_v2_to_tile(en->pos);
-        log("created entity %i = %i", i + 2, en->arch);
     }
 
     float64 seconds_counter = 0.0;
@@ -455,6 +454,22 @@ int entry(int argc, char **argv) {
                             }
                             push_z_layer(layer_world);
                             break;
+                        case ARCH_monster:
+		                    set_world_space();
+                            //:health bar
+                            {    
+                                push_z_layer(layer_ui);
+                                Sprite* sprite = get_sprite(en->sprite_id);
+                                Matrix4 xform = m4_scalar(1.0);
+                                xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
+                                xform = m4_translate(xform, v3(-0.5 * get_sprite_size(sprite).x, -.6 * get_sprite_size(sprite).y, 0));
+                                draw_rect_xform(xform, v2(en->health.max * 0.1, 2.5), COLOR_RED);
+                                draw_rect_xform(xform, v2(en->health.current * 0.1, 2.5), COLOR_GREEN);
+                                //draw_text(font, sprint(temp_allocator, STR("%f / %f"), en->health.current, en->health.max), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
+                                pop_z_layer();
+                            }
+                            push_z_layer(layer_world);
+                            break;
                         default:
 		                    set_world_space();
                             push_z_layer(layer_world);
@@ -474,6 +489,9 @@ int entry(int argc, char **argv) {
                         pop_z_layer();
                     }
                     en->time.current = (en->time.current + (en->time.rate * delta) >= en->time.max)? en->time.max: en->time.current + (en->time.rate * delta);
+                    if(en->health.current <= 0){
+                        en->is_valid = false;
+                    }
                 }
             }
         }
@@ -539,6 +557,7 @@ int entry(int argc, char **argv) {
                 }
             }
         }
+        //:input attack
         else if(world->ux_state == UX_attack){
             if (is_key_just_pressed('J')) {
                 select_next_entity_by_arch(ARCH_monster);
@@ -547,6 +566,8 @@ int entry(int argc, char **argv) {
                 select_prev_entity_by_arch(ARCH_monster);
             }
             else if (is_key_just_pressed(KEY_ENTER)){
+                Entity* selected_en = &world->entities[world->entity_selected];
+                selected_en->health.current -= 25;
                 world->ux_state = UX_command;
                 world->ux_cmd_pos = CMD_attack;
             }
