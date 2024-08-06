@@ -400,7 +400,9 @@ int entry(int argc, char **argv) {
                             push_z_layer(layer_cursor);
                             if(world->ux_state == UX_attack){
 		                        set_world_space();
-                                en->pos = v2(world->entities[world->entity_selected].pos.x, world->entities[world->entity_selected].pos.y);
+                                Entity* selected_en = &world->entities[world->entity_selected];
+                                Sprite* sprite = get_sprite(selected_en->sprite_id);
+                                en->pos = v2(selected_en->pos.x - get_sprite_size(sprite).x, selected_en->pos.y);
                             }
                             else if (world->ux_state == UX_command){
 		                        set_screen_space();
