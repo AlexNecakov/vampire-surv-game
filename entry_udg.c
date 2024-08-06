@@ -251,6 +251,34 @@ void entity_destroy(Entity* entity){
     memset(entity, 0, sizeof(Entity));
 }
 
+void select_first_entity_by_arch(EntityArchetype arch_match){
+    world->entity_selected = 0;
+    Entity* en = &world->entities[world->entity_selected];
+    while(en->arch != arch_match || !en->is_valid){
+        world->entity_selected = (world->entity_selected + 1) % MAX_ENTITY_COUNT;
+        world->entity_selected = (world->entity_selected < 0)? MAX_ENTITY_COUNT - 1: world->entity_selected;
+        en = &world->entities[world->entity_selected];
+    }
+}
+
+void select_next_entity_by_arch(EntityArchetype arch_match) {
+    Entity* en = &world->entities[world->entity_selected];
+    do{
+        world->entity_selected = (world->entity_selected + 1) % MAX_ENTITY_COUNT;
+        world->entity_selected = (world->entity_selected < 0)? MAX_ENTITY_COUNT - 1: world->entity_selected;
+        en = &world->entities[world->entity_selected];
+    }while((en->arch != arch_match) || !en->is_valid);
+}
+
+void select_prev_entity_by_arch(EntityArchetype arch_match) {
+    Entity* en = &world->entities[world->entity_selected];
+    do{
+        world->entity_selected = (world->entity_selected - 1) % MAX_ENTITY_COUNT;
+        world->entity_selected = (world->entity_selected < 0)? MAX_ENTITY_COUNT - 1: world->entity_selected;
+        en = &world->entities[world->entity_selected];
+    }while((en->arch != arch_match) || !en->is_valid);
+}
+
 void setup_player(Entity* en) {
     en->arch = ARCH_player;
     en->sprite_id = SPRITE_player;
@@ -326,6 +354,7 @@ int entry(int argc, char **argv) {
 	
     Entity* cursor_en = entity_create();
     setup_cursor(cursor_en);
+    log("created entity %i = %i", 0, cursor_en->arch);
         
     for (int i = 0; i < 1; i++) {
 		Entity* en = entity_create();
@@ -334,13 +363,15 @@ int entry(int argc, char **argv) {
 		en->pos = v2(0, 20*i);
 		en->pos = round_v2_to_tile(en->pos);
         en->time.current = get_random_float32_in_range(en->time.max * 0.1, en->time.max * 0.4);
+    log("created entity %i = %i", 1, en->arch);
 	}
 
     for (int i = 0; i < 10; i++) {
         Entity* en = entity_create();
         setup_monster(en);
-        en->pos = v2(get_random_float32_in_range(-180, -50), get_random_float32_in_range(0, 100));
+        en->pos = v2(get_random_float32_in_range(-120, -50), get_random_float32_in_range(0, 100));
         en->pos = round_v2_to_tile(en->pos);
+        log("created entity %i = %i", i + 2, en->arch);
     }
 
     float64 seconds_counter = 0.0;
@@ -495,6 +526,7 @@ int entry(int argc, char **argv) {
                 switch (world->ux_cmd_pos){
                     case CMD_attack:
                         world->ux_state = UX_attack;
+                        select_first_entity_by_arch(ARCH_monster);
                         break;
                     case CMD_magic:
                         world->ux_state = UX_attack;
@@ -509,12 +541,10 @@ int entry(int argc, char **argv) {
         }
         else if(world->ux_state == UX_attack){
             if (is_key_just_pressed('J')) {
-                world->entity_selected = (world->entity_selected + 1) % MAX_ENTITY_COUNT;
-                world->entity_selected = (world->entity_selected < 0)? MAX_ENTITY_COUNT - 1: world->entity_selected;
+                select_next_entity_by_arch(ARCH_monster);
             }
             else if (is_key_just_pressed('K')) {
-                world->entity_selected = (world->entity_selected - 1) % MAX_ENTITY_COUNT;
-                world->entity_selected = (world->entity_selected < 0)? MAX_ENTITY_COUNT - 1: world->entity_selected;
+                select_prev_entity_by_arch(ARCH_monster);
             }
             else if (is_key_just_pressed(KEY_ENTER)){
                 world->ux_state = UX_command;
