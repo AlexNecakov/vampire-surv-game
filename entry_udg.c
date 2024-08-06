@@ -15,8 +15,8 @@ float screen_height = 135.0;
 
 float64 player_hp_max = 100;
 float64 player_mp_max = 25;
-float64 player_tp_max = 300;
-float64 player_tp_rate = 30;
+float64 player_tp_max = 100;
+float64 player_tp_rate = 100;
 float64 monster_hp_max = 50;
 float64 monster_mp_max = 15;
 float64 monster_tp_max = 300;
@@ -224,7 +224,7 @@ typedef struct Entity{
 typedef struct World{
 	Entity entities[MAX_ENTITY_COUNT];
 	s32 entity_selected;
-	Entity* player_selected;
+	s32 player_selected;
 	UXState ux_state;
 	UXCommandPos ux_cmd_pos;
 	Matrix4 world_proj;
@@ -279,6 +279,33 @@ void select_prev_entity_by_arch(EntityArchetype arch_match) {
     }while((en->arch != arch_match) || !en->is_valid);
 }
 
+void select_first_player(){
+    world->player_selected = 0;
+    Entity* en = &world->entities[world->player_selected];
+    while(en->arch != ARCH_player || !en->is_valid){
+        world->player_selected = (world->player_selected + 1) % MAX_ENTITY_COUNT;
+        world->player_selected = (world->player_selected < 0)? MAX_ENTITY_COUNT - 1: world->player_selected;
+        en = &world->entities[world->player_selected];
+    }
+}
+
+void select_next_player() {
+    Entity* en = &world->entities[world->player_selected];
+    do{
+        world->player_selected = (world->player_selected + 1) % MAX_ENTITY_COUNT;
+        world->player_selected = (world->player_selected < 0)? MAX_ENTITY_COUNT - 1: world->player_selected;
+        en = &world->entities[world->player_selected];
+    }while((en->arch != ARCH_player) || !en->is_valid);
+}
+
+void select_prev_player() {
+    Entity* en = &world->entities[world->player_selected];
+    do{
+        world->player_selected = (world->player_selected - 1) % MAX_ENTITY_COUNT;
+        world->player_selected = (world->player_selected < 0)? MAX_ENTITY_COUNT - 1: world->player_selected;
+        en = &world->entities[world->player_selected];
+    }while((en->arch != ARCH_player) || !en->is_valid);
+}
 void setup_player(Entity* en) {
     en->arch = ARCH_player;
     en->sprite_id = SPRITE_player;
@@ -330,10 +357,9 @@ int entry(int argc, char **argv) {
     
     world = alloc(get_heap_allocator(), sizeof(World));
     memset(world, 0, sizeof(World));
-    world->ux_state = UX_command;
+    world->ux_state = UX_default;
     world->ux_cmd_pos = CMD_attack;
     world->debug_render = true;
-    world->entity_selected = 0;
 
     sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\undefined.png"), get_heap_allocator()) };
     sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\dude.png"), get_heap_allocator()) };
@@ -365,6 +391,7 @@ int entry(int argc, char **argv) {
 		en->pos = round_v2_to_tile(en->pos);
         en->time.current = get_random_float32_in_range(en->time.max * 0.1, en->time.max * 0.4);
 	}
+    select_first_player();
 
     for (int i = 0; i < 4; i++) {
         Entity* en = entity_create();
@@ -372,6 +399,7 @@ int entry(int argc, char **argv) {
         en->pos = v2(-4 * tile_width, i * tile_width);
         en->pos = round_v2_to_tile(en->pos);
     }
+    select_first_entity_by_arch(ARCH_monster);
 
     float64 seconds_counter = 0.0;
     s32 frame_count = 0;
@@ -438,6 +466,10 @@ int entry(int argc, char **argv) {
 		                        set_screen_space();
                                 en->pos = v2(tile_width * 1.5, y_pos - (tile_width * 0.25f) - (font_height + font_padding) * world->ux_cmd_pos * 0.1);
                             }
+                            else{
+                                set_screen_space();
+                                en->pos = v2(-10.0f * tile_width, -10.0f * tile_width);
+                            }
                             break;
                         case ARCH_player:
 		                    set_world_space();
@@ -453,6 +485,11 @@ int entry(int argc, char **argv) {
                                 pop_z_layer();
                             }
                             push_z_layer(layer_world);
+                            if(en->time.current >= en->time.max){
+                                if(world->ux_state == UX_default){
+                                    world->ux_state = UX_command;
+                                }
+                            }
                             break;
                         case ARCH_monster:
 		                    set_world_space();
@@ -502,25 +539,27 @@ int entry(int argc, char **argv) {
             push_z_layer(layer_ui);
 
             float y_pos = screen_height/3.0f;
-            // bg box
-            {
-                Matrix4 xform = m4_identity;
-                xform = m4_translate(xform, v3(0, y_pos, 0.0));
-                draw_rect_xform(xform, v2(screen_width, -y_pos), bg_box_col);
-            }
-            // commands
-            {
-                push_z_layer(layer_text);
-                Matrix4 xform = m4_identity;
-                xform = m4_translate(xform, v3(2.0f * tile_width, y_pos - (font_height + font_padding)* 0.1, 0.0));
-                draw_text_xform(font, STR("Attack"), font_height, xform, v2(0.1, 0.1), (world->ux_cmd_pos == CMD_attack)?COLOR_YELLOW:COLOR_WHITE);
-                xform = m4_translate(xform, v3(0, - (font_height + font_padding)* 0.1, 0.0));
-                draw_text_xform(font, STR("Magic"), font_height, xform, v2(0.1, 0.1), (world->ux_cmd_pos == CMD_magic)?COLOR_YELLOW:COLOR_WHITE);
-                xform = m4_translate(xform, v3(0, - (font_height + font_padding)* 0.1, 0.0));
-                draw_text_xform(font, STR("Items"), font_height, xform, v2(0.1, 0.1),  (world->ux_cmd_pos == CMD_items)?COLOR_YELLOW:COLOR_WHITE);
-                pop_z_layer();
+            if(world->ux_state != UX_default){
+                // bg box
+                {
+                    Matrix4 xform = m4_identity;
+                    xform = m4_translate(xform, v3(0, y_pos, 0.0));
+                    draw_rect_xform(xform, v2(screen_width, -y_pos), bg_box_col);
+                }
+                // commands
+                {
+                    push_z_layer(layer_text);
+                    Matrix4 xform = m4_identity;
+                    xform = m4_translate(xform, v3(2.0f * tile_width, y_pos - (font_height + font_padding)* 0.1, 0.0));
+                    draw_text_xform(font, STR("Attack"), font_height, xform, v2(0.1, 0.1), (world->ux_cmd_pos == CMD_attack)?COLOR_YELLOW:COLOR_WHITE);
+                    xform = m4_translate(xform, v3(0, - (font_height + font_padding)* 0.1, 0.0));
+                    draw_text_xform(font, STR("Magic"), font_height, xform, v2(0.1, 0.1), (world->ux_cmd_pos == CMD_magic)?COLOR_YELLOW:COLOR_WHITE);
+                    xform = m4_translate(xform, v3(0, - (font_height + font_padding)* 0.1, 0.0));
+                    draw_text_xform(font, STR("Items"), font_height, xform, v2(0.1, 0.1),  (world->ux_cmd_pos == CMD_items)?COLOR_YELLOW:COLOR_WHITE);
+                    pop_z_layer();
 
 
+                }
             }
 
             pop_z_layer();
@@ -568,9 +607,14 @@ int entry(int argc, char **argv) {
             else if (is_key_just_pressed(KEY_ENTER)){
                 Entity* selected_en = &world->entities[world->entity_selected];
                 selected_en->health.current -= 25;
-                world->ux_state = UX_command;
+                Entity* selected_player = &world->entities[world->player_selected];
+                selected_player->time.current = 0;
+                world->ux_state = UX_default;
                 world->ux_cmd_pos = CMD_attack;
             }
+        }
+        else{
+            
         }
 	    
         //:fps
