@@ -151,6 +151,7 @@ typedef enum SpriteID {
     SPRITE_nil,
     SPRITE_player,
     SPRITE_cursor,
+    SPRITE_monster,
     SPRITE_target,
     SPRITE_attack,
     SPRITE_MAX,
@@ -177,15 +178,15 @@ typedef enum UXState {
 	UX_default,
 	UX_command,
 	UX_attack,
-	UX_spell,
-	UX_item,
+	UX_magic,
+	UX_items,
 	UX_debug,
 } UXState;
 
 typedef enum UXCommandPos {
     CMD_attack = 0,
-    CMD_spell,
-    CMD_item,
+    CMD_magic,
+    CMD_items,
     CMD_MAX,
 } UXCommandPos;
 
@@ -222,7 +223,8 @@ typedef struct Entity{
 //:world
 typedef struct World{
 	Entity entities[MAX_ENTITY_COUNT];
-	Entity* entity_selected;
+	s32 entity_selected;
+	Entity* player_selected;
 	UXState ux_state;
 	UXCommandPos ux_cmd_pos;
 	Matrix4 world_proj;
@@ -266,6 +268,18 @@ void setup_cursor(Entity* en) {
     en->sprite_id = SPRITE_cursor;
 }
 
+void setup_monster(Entity* en) {
+    en->arch = ARCH_monster;
+    en->sprite_id = SPRITE_monster;
+    en->health.max = monster_hp_max;
+    en->health.current = en->health.max;
+    en->mana.max = monster_mp_max;
+    en->mana.current = en->mana.max;
+    en->time.max = monster_tp_max;
+    en->time.current = 0;
+    en->time.rate = monster_tp_rate;
+}
+
 //:item data
 typedef struct ItemData {
 	int amount;
@@ -282,15 +296,18 @@ int entry(int argc, char **argv) {
 	window.clear_color = hex_to_rgba(0x1e1e1eff);
     float32 aspectRatio = (float32)window.width/(float32)window.height; 
     float32 zoom = window.width/spriteSheetWidth;
+    float y_pos = screen_height/3.0f;
     
     world = alloc(get_heap_allocator(), sizeof(World));
     memset(world, 0, sizeof(World));
     world->ux_state = UX_command;
     world->ux_cmd_pos = CMD_attack;
     world->debug_render = true;
+    world->entity_selected = 0;
 
     sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\undefined.png"), get_heap_allocator()) };
     sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\dude.png"), get_heap_allocator()) };
+    sprites[SPRITE_monster] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\bat.png"), get_heap_allocator()) };
     sprites[SPRITE_cursor] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\cursor.png"), get_heap_allocator()) };
     sprites[SPRITE_target] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\target.png"), get_heap_allocator()) };
     sprites[SPRITE_attack] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\attack.png"), get_heap_allocator()) };
@@ -309,7 +326,6 @@ int entry(int argc, char **argv) {
 	
     Entity* cursor_en = entity_create();
     setup_cursor(cursor_en);
-
         
     for (int i = 0; i < 1; i++) {
 		Entity* en = entity_create();
@@ -320,12 +336,12 @@ int entry(int argc, char **argv) {
         en->time.current = get_random_float32_in_range(en->time.max * 0.1, en->time.max * 0.4);
 	}
 
-    //for (int i = 0; i < 10; i++) {
-    //    Entity* en = entity_create();
-    //    setup_monster(en);
-    //    en->pos = v2(get_random_float32_in_range(-180, -50), get_random_float32_in_range(0, 100));
-    //    en->pos = round_v2_to_tile(en->pos);
-    //}
+    for (int i = 0; i < 10; i++) {
+        Entity* en = entity_create();
+        setup_monster(en);
+        en->pos = v2(get_random_float32_in_range(-180, -50), get_random_float32_in_range(0, 100));
+        en->pos = round_v2_to_tile(en->pos);
+    }
 
     float64 seconds_counter = 0.0;
     s32 frame_count = 0;
@@ -365,8 +381,8 @@ int entry(int argc, char **argv) {
 					if ((x + (y % 2 == 0) ) % 2 == 0) {
 						Vector4 col = v4(0.6, 0.6, 0.6, 0.6);
 						float x_pos = x * tile_width;
-						float y_pos = y * tile_width;
-						draw_rect(v2(x_pos + tile_width * -0.5, y_pos + tile_width * -0.5), v2(tile_width, tile_width), col);
+						float tile_y_pos = y * tile_width;
+						draw_rect(v2(x_pos + tile_width * -0.5, tile_y_pos + tile_width * -0.5), v2(tile_width, tile_width), col);
 					}
 				}
 			}
@@ -375,7 +391,6 @@ int entry(int argc, char **argv) {
 
         //:entity loop 
         {
-		    set_world_space();
 
             for (int i = 0; i < MAX_ENTITY_COUNT; i++){
                 Entity* en = &world->entities[i];
@@ -383,8 +398,17 @@ int entry(int argc, char **argv) {
                     switch (en->arch){
                         case ARCH_cursor:
                             push_z_layer(layer_cursor);
+                            if(world->ux_state == UX_attack){
+		                        set_world_space();
+                                en->pos = v2(world->entities[world->entity_selected].pos.x, world->entities[world->entity_selected].pos.y);
+                            }
+                            else if (world->ux_state == UX_command){
+		                        set_screen_space();
+                                en->pos = v2(tile_width * 1.5, y_pos - (tile_width * 0.25f) - (font_height + font_padding) * world->ux_cmd_pos * 0.1);
+                            }
                             break;
                         case ARCH_player:
+		                    set_world_space();
                             //:time bar
                             {    
                                 push_z_layer(layer_ui);
@@ -399,6 +423,7 @@ int entry(int argc, char **argv) {
                             push_z_layer(layer_world);
                             break;
                         default:
+		                    set_world_space();
                             push_z_layer(layer_world);
                             break;
                     }
@@ -437,31 +462,64 @@ int entry(int argc, char **argv) {
                 push_z_layer(layer_text);
                 Matrix4 xform = m4_identity;
                 xform = m4_translate(xform, v3(2.0f * tile_width, y_pos - (font_height + font_padding)* 0.1, 0.0));
-                draw_text_xform(font, STR("Attack"), font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
+                draw_text_xform(font, STR("Attack"), font_height, xform, v2(0.1, 0.1), (world->ux_cmd_pos == CMD_attack)?COLOR_YELLOW:COLOR_WHITE);
                 xform = m4_translate(xform, v3(0, - (font_height + font_padding)* 0.1, 0.0));
-                draw_text_xform(font, STR("Magic"), font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
+                draw_text_xform(font, STR("Magic"), font_height, xform, v2(0.1, 0.1), (world->ux_cmd_pos == CMD_magic)?COLOR_YELLOW:COLOR_WHITE);
                 xform = m4_translate(xform, v3(0, - (font_height + font_padding)* 0.1, 0.0));
-                draw_text_xform(font, STR("Items"), font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
+                draw_text_xform(font, STR("Items"), font_height, xform, v2(0.1, 0.1),  (world->ux_cmd_pos == CMD_items)?COLOR_YELLOW:COLOR_WHITE);
                 pop_z_layer();
-                cursor_en->pos = v2(0, -1.0 * world->ux_cmd_pos * 10.0);
+
+
             }
 
             pop_z_layer();
         }
 
-
         //:input
         if (is_key_just_pressed(KEY_ESCAPE)){
             window.should_close = true;
         }
-		if (is_key_just_pressed('J')) {
-            world->ux_cmd_pos = (world->ux_cmd_pos + 1) % CMD_MAX;
+        //:input commands
+        if(world->ux_state == UX_command){
+            if (is_key_just_pressed('J')) {
+                world->ux_cmd_pos = (world->ux_cmd_pos + 1) % CMD_MAX;
+                world->ux_cmd_pos = (world->ux_cmd_pos < 0)? CMD_MAX - 1: world->ux_cmd_pos;
+            }
+            else if (is_key_just_pressed('K')) {
+                world->ux_cmd_pos = (world->ux_cmd_pos - 1) % CMD_MAX;
+                world->ux_cmd_pos = (world->ux_cmd_pos < 0)? CMD_MAX - 1: world->ux_cmd_pos;
+            }
+            else if (is_key_just_pressed(KEY_ENTER)) {
+                switch (world->ux_cmd_pos){
+                    case CMD_attack:
+                        world->ux_state = UX_attack;
+                        break;
+                    case CMD_magic:
+                        world->ux_state = UX_attack;
+                        break;
+                    case CMD_items:
+                        world->ux_state = UX_attack;
+                        break;
+                    default:
+                        break;
+                }
+            }
         }
-        else if (is_key_just_pressed('K')) {
-             world->ux_cmd_pos = (world->ux_cmd_pos - 1) % CMD_MAX;
+        else if(world->ux_state == UX_attack){
+            if (is_key_just_pressed('J')) {
+                world->entity_selected = (world->entity_selected + 1) % MAX_ENTITY_COUNT;
+                world->entity_selected = (world->entity_selected < 0)? MAX_ENTITY_COUNT - 1: world->entity_selected;
+            }
+            else if (is_key_just_pressed('K')) {
+                world->entity_selected = (world->entity_selected - 1) % MAX_ENTITY_COUNT;
+                world->entity_selected = (world->entity_selected < 0)? MAX_ENTITY_COUNT - 1: world->entity_selected;
+            }
+            else if (is_key_just_pressed(KEY_ENTER)){
+                world->ux_state = UX_command;
+                world->ux_cmd_pos = CMD_attack;
+            }
         }
-        world->ux_cmd_pos = (world->ux_cmd_pos < 0)? CMD_MAX - 1: world->ux_cmd_pos;
-
+	    
         //:fps
         if(world->debug_render){
             set_screen_space();
