@@ -222,6 +222,8 @@ typedef struct Entity{
     Bar time;
     float64 limit;
     bool is_invincible;
+    s32 strength;
+    s32 defense;
 } Entity;
 
 //:world
@@ -353,6 +355,8 @@ void setup_player(Entity* en) {
     en->time.max = player_tp_max;
     en->time.current = 0;
     en->time.rate = player_tp_rate;
+    en->strength = 25;
+    en->defense = 10;
 }
 
 void setup_cursor(Entity* en) {
@@ -379,6 +383,8 @@ void setup_monster(Entity* en) {
     en->time.max = monster_tp_max;
     en->time.current = 0;
     en->time.rate = monster_tp_rate;
+    en->strength = 15;
+    en->defense = 5;
 }
 
 //:item data
@@ -572,7 +578,7 @@ int entry(int argc, char **argv) {
                                 s32 target_player = 0;
                                 select_next_player(false, &target_player);
                                 en->time.current = 0;
-                                world->entities[target_player].health.current -= 25;
+                                world->entities[target_player].health.current -= (en->strength - world->entities[target_player].defense);
                             }
                             break;
                         default:
@@ -697,8 +703,8 @@ int entry(int argc, char **argv) {
                 else if (is_key_just_pressed(KEY_ENTER)){
                     consume_key_just_pressed(KEY_ENTER);
                     Entity* selected_en = &world->entities[world->entity_selected];
-                    selected_en->health.current -= 25;
                     Entity* selected_player = &world->entities[world->player_selected];
+                    selected_en->health.current -= (selected_player->strength - selected_en->defense);
                     selected_player->time.current = 0;
                     world->ux_state = UX_default;
                     world->ux_cmd_pos = CMD_attack;
