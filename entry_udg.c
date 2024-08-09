@@ -261,34 +261,74 @@ void select_first_entity_by_arch(EntityArchetype arch_match, bool checkTime, s32
     *selectIndex = 0;
     Entity* en = &world->entities[*selectIndex];
     u32 tries = 0;
-    while(((en->arch != arch_match || !en->is_valid) || (checkTime && en->time.current < en->time.max)) || (tries <= MAX_ENTITY_COUNT)){
+    for (tries = 0; tries <= MAX_ENTITY_COUNT; tries++){
+        if(en->arch == arch_match && en->is_valid){
+            if(checkTime){
+                if(en->time.current >= en->time.max){
+                    break;
+                }
+            }
+            else{
+                break;
+            }
+        }
         *selectIndex = (*selectIndex + 1) % MAX_ENTITY_COUNT;
         *selectIndex = (*selectIndex < 0)? MAX_ENTITY_COUNT - 1: *selectIndex;
         en = &world->entities[*selectIndex];
-        tries++;
+    }
+    
+    if(tries > MAX_ENTITY_COUNT){
+        //no matching entity found
+        world->ux_state = UX_default;
     }
 }
 
 void select_next_entity_by_arch(EntityArchetype arch_match, bool checkTime, s32* selectIndex) {
     Entity* en = &world->entities[*selectIndex];
     u32 tries = 0;
-    do{
+    for (tries = 0; tries <= MAX_ENTITY_COUNT; tries++){
         *selectIndex = (*selectIndex + 1) % MAX_ENTITY_COUNT;
         *selectIndex = (*selectIndex < 0)? MAX_ENTITY_COUNT - 1: *selectIndex;
         en = &world->entities[*selectIndex];
-        tries++;
-    }while(((en->arch != arch_match || !en->is_valid) || (checkTime && en->time.current < en->time.max)) || (tries <= MAX_ENTITY_COUNT));
+        if(en->arch == arch_match && en->is_valid){
+            if(checkTime){
+                if(en->time.current >= en->time.max){
+                    break;
+                }
+            }
+            else{
+                break;
+            }
+        }
+    }
+    if(tries > MAX_ENTITY_COUNT){
+        //no matching entity found
+        world->ux_state = UX_default;
+    }
 }
 
 void select_prev_entity_by_arch(EntityArchetype arch_match, bool checkTime, s32* selectIndex) {
     Entity* en = &world->entities[world->entity_selected];
     u32 tries = 0;
-    do{
+    for (tries = 0; tries <= MAX_ENTITY_COUNT; tries++){
         *selectIndex = (*selectIndex - 1) % MAX_ENTITY_COUNT;
         *selectIndex = (*selectIndex < 0)? MAX_ENTITY_COUNT - 1: *selectIndex;
         en = &world->entities[*selectIndex];
-        tries++;
-    }while(((en->arch != arch_match || !en->is_valid) || (checkTime && en->time.current < en->time.max)) || (tries <= MAX_ENTITY_COUNT));
+        if(en->arch == arch_match && en->is_valid){
+            if(checkTime){
+                if(en->time.current >= en->time.max){
+                    break;
+                }
+            }
+            else{
+                break;
+            }
+        }
+    }
+    if(tries > MAX_ENTITY_COUNT){
+        //no matching entity found
+        world->ux_state = UX_default;
+    }
 }
 
 void select_first_player(bool checkTime, s32* selectIndex){
@@ -390,11 +430,11 @@ int entry(int argc, char **argv) {
     Entity* target_en = entity_create();
     setup_target(target_en);
 
-    for (int i = 0; i < 1; i++) {
+    for (int i = 0; i < 4; i++) {
 		Entity* en = entity_create();
 		setup_player(en);
         en->name = sprint(temp_allocator, STR("player%f"), i);
-		en->pos = v2(0, 20*i);
+		en->pos = v2(0, tile_width*-i + 4 * tile_width);
 		en->pos = round_v2_to_tile(en->pos);
         en->time.current = get_random_float32_in_range(en->time.max * 0.1, en->time.max * 0.7);
 	}
@@ -402,7 +442,7 @@ int entry(int argc, char **argv) {
     for (int i = 0; i < 4; i++) {
         Entity* en = entity_create();
         setup_monster(en);
-        en->pos = v2(-4 * tile_width, i * tile_width);
+        en->pos = v2(-4 * tile_width, -i * tile_width + 4* tile_width);
         en->pos = round_v2_to_tile(en->pos);
     }
 
@@ -657,6 +697,11 @@ int entry(int argc, char **argv) {
                 Entity* selected_player = &world->entities[world->player_selected];
                 selected_player->time.current = 0;
                 world->ux_state = UX_default;
+                world->ux_cmd_pos = CMD_attack;
+            }
+            else if (is_key_just_pressed(KEY_TAB)){
+                consume_key_just_pressed(KEY_TAB);
+                world->ux_state = UX_command;
                 world->ux_cmd_pos = CMD_attack;
             }
         }
