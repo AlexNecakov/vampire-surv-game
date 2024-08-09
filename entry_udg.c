@@ -199,6 +199,26 @@ typedef struct Bar {
     float64 rate;
 } Bar;
 
+//:element
+typedef enum Element {
+    ELEM_nil = 0,
+    ELEM_default,
+    ELEM_fire,
+    ELEM_ice,
+    ELEM_thunder,
+} Element;
+
+//:action
+typedef struct ActionData {
+    string name;
+} ActionData;
+
+//:spell
+typedef struct Spell {
+    string name;
+
+} Spell;
+
 //:entity
 typedef enum EntityArchetype{
     ARCH_nil = 0,
@@ -357,6 +377,9 @@ void select_random_monster(bool checkTime, s32* selectIndex) {
     for(s64 i = 0; i < rand_num; i++){ 
         select_next_entity_by_arch(ARCH_monster, checkTime, selectIndex);
     }
+}
+
+void apply_damage_to_entity(Entity* source_en, Entity* target_en, ActionData action){
 }
 
 void setup_player(Entity* en) {
@@ -664,23 +687,26 @@ int entry(int argc, char **argv) {
         }
 
         //:input
-        if (is_key_just_pressed(KEY_ESCAPE)){
-            window.should_close = true;
-        }
         {
+            //check exit cond first
+            if (is_key_just_pressed(KEY_ESCAPE)){
+                window.should_close = true;
+            }
+
+            //error conds
             Entity* selected_player = &world->entities[world->player_selected];
+            if(selected_player->time.current < selected_player->time.max){
+                world->ux_state = UX_default;
+            }
             if(selected_player->health.current <= 0){
                 world->ux_state = UX_default;
                 selected_player->time.rate = 0;
                 selected_player->time.current = 0;
             }
+
             //:input commands
             if(world->ux_state == UX_command){
-                
-                if(selected_player->time.current < selected_player->time.max){
-                    world->ux_state = UX_default;
-                }
-                else if (is_key_just_pressed('J')) {
+                if (is_key_just_pressed('J')) {
                     consume_key_just_pressed('J');
                     world->ux_cmd_pos = (world->ux_cmd_pos + 1) % CMD_MAX;
                     world->ux_cmd_pos = (world->ux_cmd_pos < 0)? CMD_MAX - 1: world->ux_cmd_pos;
@@ -693,6 +719,7 @@ int entry(int argc, char **argv) {
                 else if (is_key_just_pressed(KEY_SPACEBAR)) {
                     consume_key_just_pressed(KEY_SPACEBAR);
                     select_next_player(true, &world->player_selected);
+                    world->ux_cmd_pos = CMD_attack;
                 }
                 else if (is_key_just_pressed(KEY_ENTER)) {
                     consume_key_just_pressed(KEY_ENTER);
@@ -702,7 +729,7 @@ int entry(int argc, char **argv) {
                             select_first_entity_by_arch(ARCH_monster, false, &world->entity_selected);
                             break;
                         case CMD_magic:
-                            world->ux_state = UX_attack;
+                            world->ux_state = UX_magic;
                             break;
                         case CMD_items:
                             world->ux_state = UX_attack;
@@ -714,6 +741,31 @@ int entry(int argc, char **argv) {
             }
             //:input attack
             else if(world->ux_state == UX_attack){
+                if (is_key_just_pressed('J')) {
+                    consume_key_just_pressed('J');
+                    select_next_entity_by_arch(ARCH_monster, false, &world->entity_selected);
+                }
+                else if (is_key_just_pressed('K')) {
+                    consume_key_just_pressed('K');
+                    select_prev_entity_by_arch(ARCH_monster, false, &world->entity_selected);
+                }
+                else if (is_key_just_pressed(KEY_ENTER)){
+                    consume_key_just_pressed(KEY_ENTER);
+                    Entity* selected_en = &world->entities[world->entity_selected];
+                    Entity* selected_player = &world->entities[world->player_selected];
+                    selected_en->health.current -= (selected_player->strength - selected_en->defense);
+                    selected_player->time.current = 0;
+                    world->ux_state = UX_default;
+                    world->ux_cmd_pos = CMD_attack;
+                }
+                else if (is_key_just_pressed(KEY_TAB)){
+                    consume_key_just_pressed(KEY_TAB);
+                    world->ux_state = UX_command;
+                    world->ux_cmd_pos = CMD_attack;
+                }
+            }
+            //:input magic 
+            else if(world->ux_state == UX_magic){
                 if (is_key_just_pressed('J')) {
                     consume_key_just_pressed('J');
                     select_next_entity_by_arch(ARCH_monster, false, &world->entity_selected);
