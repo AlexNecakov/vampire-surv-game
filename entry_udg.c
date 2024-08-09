@@ -1,5 +1,7 @@
 //:constants
 #define MAX_ENTITY_COUNT 1024
+#define MAX_PLAYER_COUNT 4
+#define MAX_MONSTER_COUNT MAX_ENTITY_COUNT
 const u32 font_height = 64;
 const float32 font_padding = (float32)font_height/10.0f;
 const float32 spriteSheetWidth = 240.0;
@@ -15,8 +17,8 @@ float screen_height = 135.0;
 
 float64 player_hp_max = 500;
 float64 player_mp_max = 25;
-float64 player_tp_max = 100;
-float64 player_tp_rate = 100;
+float64 player_tp_max = 500;
+float64 player_tp_rate = 75;
 float64 monster_hp_max = 50;
 float64 monster_mp_max = 15;
 float64 monster_tp_max = 100;
@@ -151,8 +153,8 @@ typedef enum SpriteID {
     SPRITE_nil,
     SPRITE_player,
     SPRITE_cursor,
-    SPRITE_monster,
     SPRITE_target,
+    SPRITE_monster,
     SPRITE_attack,
     SPRITE_MAX,
 } SpriteID;
@@ -202,6 +204,7 @@ typedef enum EntityArchetype{
     ARCH_nil = 0,
     ARCH_player,
     ARCH_cursor,
+    ARCH_target,
     ARCH_attack,
     ARCH_monster,
     ARCH_MAX,
@@ -218,11 +221,14 @@ typedef struct Entity{
     Bar mana;
     Bar time;
     float64 limit;
+    bool is_invincible;
 } Entity;
 
 //:world
 typedef struct World{
 	Entity entities[MAX_ENTITY_COUNT];
+    Entity players[MAX_PLAYER_COUNT];
+    Entity monsters[MAX_MONSTER_COUNT];
 	s32 entity_selected;
 	s32 player_selected;
 	UXState ux_state;
@@ -251,61 +257,52 @@ void entity_destroy(Entity* entity){
     memset(entity, 0, sizeof(Entity));
 }
 
-void select_first_entity_by_arch(EntityArchetype arch_match){
-    world->entity_selected = 0;
-    Entity* en = &world->entities[world->entity_selected];
-    while(en->arch != arch_match || !en->is_valid){
-        world->entity_selected = (world->entity_selected + 1) % MAX_ENTITY_COUNT;
-        world->entity_selected = (world->entity_selected < 0)? MAX_ENTITY_COUNT - 1: world->entity_selected;
-        en = &world->entities[world->entity_selected];
+void select_first_entity_by_arch(EntityArchetype arch_match, bool checkTime, s32* selectIndex){
+    *selectIndex = 0;
+    Entity* en = &world->entities[*selectIndex];
+    u32 tries = 0;
+    while(((en->arch != arch_match || !en->is_valid) || (checkTime && en->time.current < en->time.max)) || (tries <= MAX_ENTITY_COUNT)){
+        *selectIndex = (*selectIndex + 1) % MAX_ENTITY_COUNT;
+        *selectIndex = (*selectIndex < 0)? MAX_ENTITY_COUNT - 1: *selectIndex;
+        en = &world->entities[*selectIndex];
+        tries++;
     }
 }
 
-void select_next_entity_by_arch(EntityArchetype arch_match) {
+void select_next_entity_by_arch(EntityArchetype arch_match, bool checkTime, s32* selectIndex) {
+    Entity* en = &world->entities[*selectIndex];
+    u32 tries = 0;
+    do{
+        *selectIndex = (*selectIndex + 1) % MAX_ENTITY_COUNT;
+        *selectIndex = (*selectIndex < 0)? MAX_ENTITY_COUNT - 1: *selectIndex;
+        en = &world->entities[*selectIndex];
+        tries++;
+    }while(((en->arch != arch_match || !en->is_valid) || (checkTime && en->time.current < en->time.max)) || (tries <= MAX_ENTITY_COUNT));
+}
+
+void select_prev_entity_by_arch(EntityArchetype arch_match, bool checkTime, s32* selectIndex) {
     Entity* en = &world->entities[world->entity_selected];
+    u32 tries = 0;
     do{
-        world->entity_selected = (world->entity_selected + 1) % MAX_ENTITY_COUNT;
-        world->entity_selected = (world->entity_selected < 0)? MAX_ENTITY_COUNT - 1: world->entity_selected;
-        en = &world->entities[world->entity_selected];
-    }while((en->arch != arch_match) || !en->is_valid);
+        *selectIndex = (*selectIndex - 1) % MAX_ENTITY_COUNT;
+        *selectIndex = (*selectIndex < 0)? MAX_ENTITY_COUNT - 1: *selectIndex;
+        en = &world->entities[*selectIndex];
+        tries++;
+    }while(((en->arch != arch_match || !en->is_valid) || (checkTime && en->time.current < en->time.max)) || (tries <= MAX_ENTITY_COUNT));
 }
 
-void select_prev_entity_by_arch(EntityArchetype arch_match) {
-    Entity* en = &world->entities[world->entity_selected];
-    do{
-        world->entity_selected = (world->entity_selected - 1) % MAX_ENTITY_COUNT;
-        world->entity_selected = (world->entity_selected < 0)? MAX_ENTITY_COUNT - 1: world->entity_selected;
-        en = &world->entities[world->entity_selected];
-    }while((en->arch != arch_match) || !en->is_valid);
+void select_first_player(bool checkTime, s32* selectIndex){
+    select_first_entity_by_arch(ARCH_player, checkTime, selectIndex);
 }
 
-void select_first_player(){
-    world->player_selected = 0;
-    Entity* en = &world->entities[world->player_selected];
-    while(en->arch != ARCH_player || !en->is_valid){
-        world->player_selected = (world->player_selected + 1) % MAX_ENTITY_COUNT;
-        world->player_selected = (world->player_selected < 0)? MAX_ENTITY_COUNT - 1: world->player_selected;
-        en = &world->entities[world->player_selected];
-    }
+void select_next_player(bool checkTime, s32* selectIndex) {
+    select_next_entity_by_arch(ARCH_player, checkTime, selectIndex);
 }
 
-void select_next_player() {
-    Entity* en = &world->entities[world->player_selected];
-    do{
-        world->player_selected = (world->player_selected + 1) % MAX_ENTITY_COUNT;
-        world->player_selected = (world->player_selected < 0)? MAX_ENTITY_COUNT - 1: world->player_selected;
-        en = &world->entities[world->player_selected];
-    }while((en->arch != ARCH_player) || !en->is_valid);
+void select_prev_player(bool checkTime, s32* selectIndex) {
+    select_prev_entity_by_arch(ARCH_player, checkTime, selectIndex);
 }
 
-void select_prev_player() {
-    Entity* en = &world->entities[world->player_selected];
-    do{
-        world->player_selected = (world->player_selected - 1) % MAX_ENTITY_COUNT;
-        world->player_selected = (world->player_selected < 0)? MAX_ENTITY_COUNT - 1: world->player_selected;
-        en = &world->entities[world->player_selected];
-    }while((en->arch != ARCH_player) || !en->is_valid);
-}
 void setup_player(Entity* en) {
     en->arch = ARCH_player;
     en->sprite_id = SPRITE_player;
@@ -321,8 +318,15 @@ void setup_player(Entity* en) {
 void setup_cursor(Entity* en) {
     en->arch = ARCH_cursor;
     en->sprite_id = SPRITE_cursor;
+    en->is_invincible = true;
+}
+
+void setup_target(Entity* en) {
+    en->arch = ARCH_target;
+    en->sprite_id = SPRITE_target;
     en->health.max = 1;
     en->health.current = 1;
+    en->is_invincible = true;
 }
 
 void setup_monster(Entity* en) {
@@ -383,15 +387,17 @@ int entry(int argc, char **argv) {
     Entity* cursor_en = entity_create();
     setup_cursor(cursor_en);
         
+    Entity* target_en = entity_create();
+    setup_target(target_en);
+
     for (int i = 0; i < 1; i++) {
 		Entity* en = entity_create();
 		setup_player(en);
         en->name = sprint(temp_allocator, STR("player%f"), i);
 		en->pos = v2(0, 20*i);
 		en->pos = round_v2_to_tile(en->pos);
-        en->time.current = get_random_float32_in_range(en->time.max * 0.1, en->time.max * 0.4);
+        en->time.current = get_random_float32_in_range(en->time.max * 0.1, en->time.max * 0.7);
 	}
-    select_first_player();
 
     for (int i = 0; i < 4; i++) {
         Entity* en = entity_create();
@@ -399,7 +405,6 @@ int entry(int argc, char **argv) {
         en->pos = v2(-4 * tile_width, i * tile_width);
         en->pos = round_v2_to_tile(en->pos);
     }
-    select_first_entity_by_arch(ARCH_monster);
 
     float64 seconds_counter = 0.0;
     s32 frame_count = 0;
@@ -452,19 +457,32 @@ int entry(int argc, char **argv) {
 
             for (int i = 0; i < MAX_ENTITY_COUNT; i++){
                 Entity* en = &world->entities[i];
-                if (en->is_valid){
+                if (en->is_valid || en->is_invincible){
                     switch (en->arch){
                         case ARCH_cursor:
                             push_z_layer(layer_cursor);
-                            if(world->ux_state == UX_attack){
+                            if (world->ux_state == UX_command){
+		                        set_screen_space();
+                                en->pos = v2(tile_width * 1.5, y_pos - (tile_width * 0.25f) - (font_height + font_padding) * world->ux_cmd_pos * 0.1);
+                            }
+                            else if(world->ux_state == UX_attack){
 		                        set_world_space();
                                 Entity* selected_en = &world->entities[world->entity_selected];
                                 Sprite* sprite = get_sprite(selected_en->sprite_id);
                                 en->pos = v2(selected_en->pos.x - get_sprite_size(sprite).x, selected_en->pos.y);
                             }
-                            else if (world->ux_state == UX_command){
-		                        set_screen_space();
-                                en->pos = v2(tile_width * 1.5, y_pos - (tile_width * 0.25f) - (font_height + font_padding) * world->ux_cmd_pos * 0.1);
+                            else{
+                                set_screen_space();
+                                en->pos = v2(-10.0f * tile_width, -10.0f * tile_width);
+                            }
+                            break;
+                        case ARCH_target:
+                            push_z_layer(layer_cursor);
+                            if(world->ux_state == UX_attack || world->ux_state == UX_command){
+		                        set_world_space();
+                                Entity* selected_player = &world->entities[world->player_selected];
+                                Sprite* sprite = get_sprite(selected_player->sprite_id);
+                                en->pos = v2(selected_player->pos.x, selected_player->pos.y + get_sprite_size(sprite).y);
                             }
                             else{
                                 set_screen_space();
@@ -491,6 +509,7 @@ int entry(int argc, char **argv) {
                             if(en->time.current >= en->time.max){
                                 if(world->ux_state == UX_default){
                                     world->ux_state = UX_command;
+                                    world->player_selected = i;
                                 }
                             }
                             break;
@@ -510,9 +529,10 @@ int entry(int argc, char **argv) {
                             }
                             push_z_layer(layer_world);
                             if(en->time.current >= en->time.max){
-                                Entity* selected_player = &world->entities[world->player_selected];
+                                s32 target_player = 0;
+                                select_next_player(false, &target_player);
                                 en->time.current = 0;
-                                selected_player->health.current -= 25;
+                                world->entities[target_player].health.current -= 25;
                             }
                             break;
                         default:
@@ -579,19 +599,35 @@ int entry(int argc, char **argv) {
         }
         //:input commands
         if(world->ux_state == UX_command){
-            if (is_key_just_pressed('J')) {
+            Entity* selected_player = &world->entities[world->player_selected];
+            if(selected_player->health.current == 0){
+                world->ux_state = UX_default;
+                selected_player->time.rate = 0;
+                selected_player->time.current = 0;
+            }
+            if(selected_player->time.current < selected_player->time.max){
+                world->ux_state = UX_default;
+            }
+            else if (is_key_just_pressed('J')) {
+                consume_key_just_pressed('J');
                 world->ux_cmd_pos = (world->ux_cmd_pos + 1) % CMD_MAX;
                 world->ux_cmd_pos = (world->ux_cmd_pos < 0)? CMD_MAX - 1: world->ux_cmd_pos;
             }
             else if (is_key_just_pressed('K')) {
+                consume_key_just_pressed('K');
                 world->ux_cmd_pos = (world->ux_cmd_pos - 1) % CMD_MAX;
                 world->ux_cmd_pos = (world->ux_cmd_pos < 0)? CMD_MAX - 1: world->ux_cmd_pos;
             }
+            else if (is_key_just_pressed(KEY_SPACEBAR)) {
+                consume_key_just_pressed(KEY_SPACEBAR);
+                select_next_player(true, &world->player_selected);
+            }
             else if (is_key_just_pressed(KEY_ENTER)) {
+                consume_key_just_pressed(KEY_ENTER);
                 switch (world->ux_cmd_pos){
                     case CMD_attack:
                         world->ux_state = UX_attack;
-                        select_first_entity_by_arch(ARCH_monster);
+                        select_first_entity_by_arch(ARCH_monster, false, &world->entity_selected);
                         break;
                     case CMD_magic:
                         world->ux_state = UX_attack;
@@ -607,12 +643,15 @@ int entry(int argc, char **argv) {
         //:input attack
         else if(world->ux_state == UX_attack){
             if (is_key_just_pressed('J')) {
-                select_next_entity_by_arch(ARCH_monster);
+                consume_key_just_pressed('J');
+                select_next_entity_by_arch(ARCH_monster, false, &world->entity_selected);
             }
             else if (is_key_just_pressed('K')) {
-                select_prev_entity_by_arch(ARCH_monster);
+                consume_key_just_pressed('K');
+                select_prev_entity_by_arch(ARCH_monster, false, &world->entity_selected);
             }
             else if (is_key_just_pressed(KEY_ENTER)){
+                consume_key_just_pressed(KEY_ENTER);
                 Entity* selected_en = &world->entities[world->entity_selected];
                 selected_en->health.current -= 25;
                 Entity* selected_player = &world->entities[world->player_selected];
