@@ -13,14 +13,14 @@ Vector4 bg_box_col = {0, 0, 1.0, 0.9};
 float screen_width = 240.0;
 float screen_height = 135.0;
 
-float64 player_hp_max = 100;
+float64 player_hp_max = 500;
 float64 player_mp_max = 25;
 float64 player_tp_max = 100;
 float64 player_tp_rate = 100;
 float64 monster_hp_max = 50;
 float64 monster_mp_max = 15;
-float64 monster_tp_max = 300;
-float64 monster_tp_rate = 5;
+float64 monster_tp_max = 100;
+float64 monster_tp_rate = 25;
 
 //:math
 #define m4_identity m4_make_scale(v3(1, 1, 1))
@@ -480,8 +480,11 @@ int entry(int argc, char **argv) {
                                 Matrix4 xform = m4_scalar(1.0);
                                 xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
                                 xform = m4_translate(xform, v3(-0.5 * get_sprite_size(sprite).x, -.6 * get_sprite_size(sprite).y, 0));
-                                draw_rect_xform(xform, v2(en->time.max * 0.1, 2.5), COLOR_RED);
-                                draw_rect_xform(xform, v2(en->time.current * 0.1, 2.5), COLOR_GREEN);
+                                draw_rect_xform(xform, v2(en->time.max * 0.1, 2.5), COLOR_BLUE);
+                                draw_rect_xform(xform, v2(en->time.current * 0.1, 2.5), COLOR_YELLOW);
+                                xform = m4_translate(xform, v3(-0.5 * get_sprite_size(sprite).x, -.6 * get_sprite_size(sprite).y, 0));
+                                draw_rect_xform(xform, v2(en->health.max * 0.1, 2.5), COLOR_RED);
+                                draw_rect_xform(xform, v2(en->health.current * 0.1, 2.5), COLOR_GREEN);
                                 pop_z_layer();
                             }
                             push_z_layer(layer_world);
@@ -506,6 +509,11 @@ int entry(int argc, char **argv) {
                                 pop_z_layer();
                             }
                             push_z_layer(layer_world);
+                            if(en->time.current >= en->time.max){
+                                Entity* selected_player = &world->entities[world->player_selected];
+                                en->time.current = 0;
+                                selected_player->health.current -= 25;
+                            }
                             break;
                         default:
 		                    set_world_space();
