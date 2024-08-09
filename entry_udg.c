@@ -497,7 +497,7 @@ int entry(int argc, char **argv) {
 
             for (int i = 0; i < MAX_ENTITY_COUNT; i++){
                 Entity* en = &world->entities[i];
-                if (en->is_valid || en->is_invincible){
+                if (en->is_valid){
                     switch (en->arch){
                         case ARCH_cursor:
                             push_z_layer(layer_cursor);
@@ -594,8 +594,10 @@ int entry(int argc, char **argv) {
                         pop_z_layer();
                     }
                     en->time.current = (en->time.current + (en->time.rate * delta) >= en->time.max)? en->time.max: en->time.current + (en->time.rate * delta);
-                    if(en->health.current <= 0){
-                        en->is_valid = false;
+                    if(!en->is_invincible){
+                        if(en->health.current <= 0){
+                            en->is_valid = false;
+                        }
                     }
                 }
             }
