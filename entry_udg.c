@@ -229,10 +229,10 @@ typedef struct Entity{
 //:world
 typedef struct World{
 	Entity entities[MAX_ENTITY_COUNT];
-    Entity players[MAX_PLAYER_COUNT];
-    Entity monsters[MAX_MONSTER_COUNT];
 	s32 entity_selected;
 	s32 player_selected;
+    s32 num_players;
+    s32 num_monsters;
 	UXState ux_state;
 	UXCommandPos ux_cmd_pos;
 	Matrix4 world_proj;
@@ -345,6 +345,20 @@ void select_prev_player(bool checkTime, s32* selectIndex) {
     select_prev_entity_by_arch(ARCH_player, checkTime, selectIndex);
 }
 
+void select_random_player(bool checkTime, s32* selectIndex) {
+    s64 rand_num = get_random_int_in_range(0, world->num_players);
+    for(s64 i = 0; i < rand_num; i++){ 
+        select_next_entity_by_arch(ARCH_player, checkTime, selectIndex);
+    }
+}
+
+void select_random_monster(bool checkTime, s32* selectIndex) {
+    s64 rand_num = get_random_int_in_range(0, world->num_monsters);
+    for(s64 i = 0; i < rand_num; i++){ 
+        select_next_entity_by_arch(ARCH_monster, checkTime, selectIndex);
+    }
+}
+
 void setup_player(Entity* en) {
     en->arch = ARCH_player;
     en->sprite_id = SPRITE_player;
@@ -357,6 +371,7 @@ void setup_player(Entity* en) {
     en->time.rate = player_tp_rate;
     en->strength = 25;
     en->defense = 10;
+    world->num_players++;
 }
 
 void setup_cursor(Entity* en) {
@@ -385,6 +400,7 @@ void setup_monster(Entity* en) {
     en->time.rate = monster_tp_rate;
     en->strength = 15;
     en->defense = 5;
+    world->num_monsters++;
 }
 
 //:item data
@@ -576,7 +592,7 @@ int entry(int argc, char **argv) {
                             push_z_layer(layer_world);
                             if(en->time.current >= en->time.max){
                                 s32 target_player = 0;
-                                select_next_player(false, &target_player);
+                                select_random_player(false, &target_player);
                                 en->time.current = 0;
                                 world->entities[target_player].health.current -= (en->strength - world->entities[target_player].defense);
                             }
@@ -603,6 +619,12 @@ int entry(int argc, char **argv) {
                     if(!en->is_invincible){
                         if(en->health.current <= 0){
                             en->is_valid = false;
+                            if(en->arch == ARCH_player){
+                                world->num_players--;
+                            }
+                            else if(en->arch == ARCH_monster){
+                                world->num_monsters--;
+                            }
                         }
                     }
                 }
