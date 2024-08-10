@@ -585,7 +585,7 @@ int entry(int argc, char **argv) {
                                 xform = m4_translate(xform, v3(-0.5 * get_sprite_size(sprite).x, -.6 * get_sprite_size(sprite).y, 0));
                                 draw_rect_xform(xform, v2(en->time.max * 0.1, 2.5), COLOR_BLUE);
                                 draw_rect_xform(xform, v2(en->time.current * 0.1, 2.5), COLOR_YELLOW);
-                                xform = m4_translate(xform, v3(-0.5 * get_sprite_size(sprite).x, -.6 * get_sprite_size(sprite).y, 0));
+                                xform = m4_translate(xform, v3(-0.5 * get_sprite_size(sprite).x, 0, 0));
                                 draw_rect_xform(xform, v2(en->health.max * 0.1, 2.5), COLOR_RED);
                                 draw_rect_xform(xform, v2(en->health.current * 0.1, 2.5), COLOR_GREEN);
                                 pop_z_layer();
