@@ -407,6 +407,7 @@ void setup_player(Entity* en) {
     en->strength = 25;
     en->defense = 10;
     world->num_players++;
+    //en->is_invincible = true;
 }
 
 void setup_cursor(Entity* en) {
@@ -522,6 +523,9 @@ int entry(int argc, char **argv) {
     setup_text(item_menu_en, STR("Items"));
     item_menu_en->pos = v2(2.0f * tile_width, y_pos - (font_height + font_padding) * 0.1 * 3); 
    
+    Entity* fps_count_en = entity_create();
+    setup_text(fps_count_en, STR("fps: 0.0"));
+    fps_count_en->pos = v2(0, screen_height - (font_height + font_padding) * 0.1);
 
     float64 seconds_counter = 0.0;
     s32 frame_count = 0;
@@ -817,9 +821,6 @@ int entry(int argc, char **argv) {
 	    
         //:fps
         if(world->debug_render){
-            set_screen_space();
-            push_z_layer(layer_text);
-
             seconds_counter += delta;
             frame_count+=1;
             if(seconds_counter > 1.0){
@@ -829,9 +830,7 @@ int entry(int argc, char **argv) {
             }
             string text = STR("fps: %i");
             text = sprint(temp_allocator, text, last_fps);
-            Matrix4 xform = m4_scalar(1.0);
-            xform = m4_translate(xform, v3(0, screen_height - (font_height + font_padding) * 0.1, 0.0));
-            draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
+            fps_count_en->name = text;
         }
 
         gfx_update();
