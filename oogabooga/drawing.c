@@ -327,4 +327,6 @@ void draw_line(Vector2 p0, Vector2 p1, float line_width, Vector4 color) {
 #define COLOR_PINK ((Vector4){1.0, 0.0, 1.0, 1.0})
 #define COLOR_WHITE ((Vector4){1.0, 1.0, 1.0, 1.0})
 #define COLOR_BLACK ((Vector4){0.0, 0.0, 0.0, 1.0})
+#define COLOR_GREY ((Vector4){0.5, 0.5, 0.5, 1.0})
+#define COLOR_GRAY COLOR_GREY
 
