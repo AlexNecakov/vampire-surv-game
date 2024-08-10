@@ -237,6 +237,7 @@ typedef struct Entity{
     SpriteID sprite_id;
     bool render_sprite;
     Vector2 pos;
+    Vector4 color;
     Bar health;
     Bar mana;
     Bar time;
@@ -388,8 +389,7 @@ void render_sprite_entity(Entity* en){
     xform         = m4_translate(xform, v3(0, tile_width * -0.5, 0));
     xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
     xform         = m4_translate(xform, v3(get_sprite_size(sprite).x * -0.5, 0.0, 0));
-    Vector4 col = COLOR_WHITE;
-    draw_image_xform(sprite->image, xform, get_sprite_size(sprite), col);
+    draw_image_xform(sprite->image, xform, get_sprite_size(sprite), en->color);
     // debug pos 
     //draw_text(font, sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
 }
@@ -406,6 +406,7 @@ void setup_player(Entity* en) {
     en->time.rate = player_tp_rate;
     en->strength = 25;
     en->defense = 10;
+    en->color = COLOR_WHITE;
     world->num_players++;
     //en->is_invincible = true;
 }
@@ -414,6 +415,7 @@ void setup_cursor(Entity* en) {
     en->arch = ARCH_cursor;
     en->sprite_id = SPRITE_cursor;
     en->is_invincible = true;
+    en->color = COLOR_WHITE;
 }
 
 void setup_target(Entity* en) {
@@ -422,12 +424,14 @@ void setup_target(Entity* en) {
     en->health.max = 1;
     en->health.current = 1;
     en->is_invincible = true;
+    en->color = COLOR_WHITE;
 }
 
 void setup_text(Entity* en, string name){
     en->arch = ARCH_text;
     en->name = name;
     en->is_invincible = true;
+    en->color = COLOR_WHITE;
 }
 
 void setup_monster(Entity* en) {
@@ -442,6 +446,7 @@ void setup_monster(Entity* en) {
     en->time.rate = monster_tp_rate;
     en->strength = 15;
     en->defense = 5;
+    en->color = COLOR_WHITE;
     world->num_monsters++;
 }
 
@@ -575,7 +580,6 @@ int entry(int argc, char **argv) {
 
         //:entity loop 
         {
-
             for (int i = 0; i < MAX_ENTITY_COUNT; i++){
                 Entity* en = &world->entities[i];
                 if (en->is_valid){
@@ -663,16 +667,10 @@ int entry(int argc, char **argv) {
                         case ARCH_text: 
                             set_screen_space();
                             push_z_layer(layer_text);
-                            
-                            if(world->ux_state != UX_default){
-                                // commands
-                                {
-                                    Matrix4 xform = m4_scalar(1.0);
-                                    string text = en->name;
-                                    xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
-                                    draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), (world->ux_cmd_pos == CMD_attack)?COLOR_YELLOW:COLOR_WHITE);
-                                }
-                            }
+                            Matrix4 xform = m4_scalar(1.0);
+                            string text = en->name;
+                            xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
+                            draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), en->color);
                             break;
                         default:
 		                    set_world_space();
@@ -709,6 +707,13 @@ int entry(int argc, char **argv) {
             }
 
             pop_z_layer();
+            attack_menu_en->color = (world->ux_cmd_pos == CMD_attack)?COLOR_YELLOW:COLOR_WHITE;
+            magic_menu_en->color = (world->ux_cmd_pos == CMD_magic)?COLOR_YELLOW:COLOR_WHITE;
+            item_menu_en->color = (world->ux_cmd_pos == CMD_items)?COLOR_YELLOW:COLOR_WHITE;
+
+            attack_menu_en->color.a = (world->ux_state != UX_default)?1.0:0.1;
+            magic_menu_en->color.a = (world->ux_state != UX_default)?1.0:0.1;
+            item_menu_en->color.a = (world->ux_state != UX_default)?1.0:0.1;
         }
 
         //:input
