@@ -737,22 +737,18 @@ int entry(int argc, char **argv) {
             //:input commands
             if(world->ux_state == UX_command){
                 if (is_key_just_pressed('J')) {
-                    consume_key_just_pressed('J');
                     world->ux_cmd_pos = (world->ux_cmd_pos + 1) % CMD_MAX;
                     world->ux_cmd_pos = (world->ux_cmd_pos < 0)? CMD_MAX - 1: world->ux_cmd_pos;
                 }
                 else if (is_key_just_pressed('K')) {
-                    consume_key_just_pressed('K');
                     world->ux_cmd_pos = (world->ux_cmd_pos - 1) % CMD_MAX;
                     world->ux_cmd_pos = (world->ux_cmd_pos < 0)? CMD_MAX - 1: world->ux_cmd_pos;
                 }
                 else if (is_key_just_pressed(KEY_SPACEBAR)) {
-                    consume_key_just_pressed(KEY_SPACEBAR);
                     select_next_player(true, &world->player_selected);
                     world->ux_cmd_pos = CMD_attack;
                 }
                 else if (is_key_just_pressed(KEY_ENTER)) {
-                    consume_key_just_pressed(KEY_ENTER);
                     switch (world->ux_cmd_pos){
                         case CMD_attack:
                             world->ux_state = UX_attack;
