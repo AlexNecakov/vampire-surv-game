@@ -8,7 +8,8 @@ const float32 spriteSheetWidth = 240.0;
 const s32 tile_width = 16;
 const s32 layer_world = 10;
 const s32 layer_entity = 20;
-const s32 layer_ui = 30;
+const s32 layer_ui_bg = 30;
+const s32 layer_ui_fg = 35;
 const s32 layer_text = 40;
 const s32 layer_cursor = 50;
 Vector4 bg_box_col = {0, 0, 1.0, 0.9};
@@ -502,7 +503,7 @@ int entry(int argc, char **argv) {
     for (int i = 0; i < 4; i++) {
 		Entity* en = entity_create();
 		setup_player(en);
-        en->name = sprint(temp_allocator, STR("player%f"), i);
+        en->name = sprint(temp_allocator, STR("player%i"), i);
 		en->pos = v2(0, tile_width*-i + 4 * tile_width);
 		en->pos = round_v2_to_tile(en->pos);
         en->time.current = get_random_float32_in_range(en->time.max * 0.1, en->time.max * 0.7);
@@ -617,21 +618,24 @@ int entry(int argc, char **argv) {
                             render_sprite_entity(en);
                             break;
                         case ARCH_player:
-		                    set_world_space();
-                            //:time bar
+                            //:bar rendering
                             {    
-                                push_z_layer(layer_ui);
-                                Sprite* sprite = get_sprite(en->sprite_id);
+                                set_screen_space();
+                                push_z_layer(layer_ui_fg);
+                                //Sprite* sprite = get_sprite(en->sprite_id);
                                 Matrix4 xform = m4_scalar(1.0);
-                                xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
-                                xform = m4_translate(xform, v3(-0.5 * get_sprite_size(sprite).x, -.6 * get_sprite_size(sprite).y, 0));
-                                draw_rect_xform(xform, v2(en->time.max * 0.1, 2.5), COLOR_BLUE);
-                                draw_rect_xform(xform, v2(en->time.current * 0.1, 2.5), COLOR_YELLOW);
-                                xform = m4_translate(xform, v3(-0.5 * get_sprite_size(sprite).x, 0, 0));
-                                draw_rect_xform(xform, v2(en->health.max * 0.1, 2.5), COLOR_RED);
-                                draw_rect_xform(xform, v2(en->health.current * 0.1, 2.5), COLOR_GREEN);
+                                //xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
+                                xform = m4_translate(xform, v3(9.0f * tile_width, y_pos - (font_height + font_padding) * 0.1 * i, 0)); 
+                                draw_text_xform(font, en->name, font_height, xform, v2(0.1, 0.1), (world->player_selected==i)?COLOR_YELLOW:COLOR_WHITE);
+                                xform = m4_translate(xform, v3(30, 0, 0));
+                                draw_rect_xform(xform, v2(25, 2.5), COLOR_RED);
+                                draw_rect_xform(xform, v2((en->health.current / en->health.max) * 25.0f, 2.5), COLOR_GREEN);
+                                xform = m4_translate(xform, v3(30, 0, 0));
+                                draw_rect_xform(xform, v2(25, 2.5), COLOR_GREY);
+                                draw_rect_xform(xform, v2((en->time.current / en->time.max) * 25.0f, 2.5), COLOR_YELLOW);
                                 pop_z_layer();
                             }
+		                    set_world_space();
                             push_z_layer(layer_world);
                             if(en->time.current >= en->time.max){
                                 if(world->ux_state == UX_default){
@@ -645,7 +649,7 @@ int entry(int argc, char **argv) {
 		                    set_world_space();
                             //:health bar
                             {    
-                                push_z_layer(layer_ui);
+                                push_z_layer(layer_ui_bg);
                                 Sprite* sprite = get_sprite(en->sprite_id);
                                 Matrix4 xform = m4_scalar(1.0);
                                 xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
@@ -698,7 +702,7 @@ int entry(int argc, char **argv) {
         //:ui loop 
         {
             set_screen_space();
-            push_z_layer(layer_ui);
+            push_z_layer(layer_ui_bg);
             // bg box
             {
                 Matrix4 xform = m4_scalar(1.0);
