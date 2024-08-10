@@ -794,20 +794,12 @@ int entry(int argc, char **argv) {
             else if(world->ux_state == UX_magic){
                 if (is_key_just_pressed('J')) {
                     consume_key_just_pressed('J');
-                    select_next_entity_by_arch(ARCH_monster, false, &world->entity_selected);
                 }
                 else if (is_key_just_pressed('K')) {
                     consume_key_just_pressed('K');
-                    select_prev_entity_by_arch(ARCH_monster, false, &world->entity_selected);
                 }
                 else if (is_key_just_pressed(KEY_ENTER)){
                     consume_key_just_pressed(KEY_ENTER);
-                    Entity* selected_en = &world->entities[world->entity_selected];
-                    Entity* selected_player = &world->entities[world->player_selected];
-                    selected_en->health.current -= (selected_player->strength - selected_en->defense);
-                    selected_player->time.current = 0;
-                    world->ux_state = UX_default;
-                    world->ux_cmd_pos = CMD_attack;
                 }
                 else if (is_key_just_pressed(KEY_TAB)){
                     consume_key_just_pressed(KEY_TAB);
