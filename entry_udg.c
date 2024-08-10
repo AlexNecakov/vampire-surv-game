@@ -170,6 +170,7 @@ Sprite* get_sprite(SpriteID id){
     }
     return &sprites[0];
 }
+
 Vector2 get_sprite_size(Sprite* sprite) {
 	return (Vector2) { sprite->image->width, sprite->image->height };
 }
@@ -227,6 +228,7 @@ typedef enum EntityArchetype{
     ARCH_target,
     ARCH_attack,
     ARCH_monster,
+    ARCH_text,
     ARCH_MAX,
 } EntityArchetype;
 
@@ -382,6 +384,18 @@ void select_random_monster(bool checkTime, s32* selectIndex) {
 void apply_damage_to_entity(Entity* source_en, Entity* target_en, ActionData action){
 }
 
+void render_sprite_entity(Entity* en){
+    Sprite* sprite = get_sprite(en->sprite_id);
+    Matrix4 xform = m4_scalar(1.0);
+    xform         = m4_translate(xform, v3(0, tile_width * -0.5, 0));
+    xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
+    xform         = m4_translate(xform, v3(get_sprite_size(sprite).x * -0.5, 0.0, 0));
+    Vector4 col = COLOR_WHITE;
+    draw_image_xform(sprite->image, xform, get_sprite_size(sprite), col);
+    // debug pos 
+    //draw_text(font, sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
+}
+
 void setup_player(Entity* en) {
     en->arch = ARCH_player;
     en->sprite_id = SPRITE_player;
@@ -408,6 +422,12 @@ void setup_target(Entity* en) {
     en->sprite_id = SPRITE_target;
     en->health.max = 1;
     en->health.current = 1;
+    en->is_invincible = true;
+}
+
+void setup_text(Entity* en, string name){
+    en->arch = ARCH_text;
+    en->name = name;
     en->is_invincible = true;
 }
 
@@ -491,6 +511,20 @@ int entry(int argc, char **argv) {
         en->pos = round_v2_to_tile(en->pos);
     }
 
+
+    Entity* attack_menu_en = entity_create();
+    setup_text(attack_menu_en, STR("Attack"));
+    attack_menu_en->pos = v2(2.0f * tile_width, y_pos - (font_height + font_padding) * 0.1); 
+
+    Entity* magic_menu_en = entity_create();
+    setup_text(magic_menu_en, STR("Magic"));
+    magic_menu_en->pos = v2(2.0f * tile_width, y_pos - (font_height + font_padding) * 0.1 * 2); 
+    
+    Entity* item_menu_en = entity_create();
+    setup_text(item_menu_en, STR("Items"));
+    item_menu_en->pos = v2(2.0f * tile_width, y_pos - (font_height + font_padding) * 0.1 * 3); 
+   
+
     float64 seconds_counter = 0.0;
     s32 frame_count = 0;
     s32 last_fps = 0;
@@ -560,6 +594,7 @@ int entry(int argc, char **argv) {
                                 set_screen_space();
                                 en->pos = v2(-10.0f * tile_width, -10.0f * tile_width);
                             }
+                            render_sprite_entity(en);
                             break;
                         case ARCH_target:
                             push_z_layer(layer_cursor);
@@ -573,6 +608,7 @@ int entry(int argc, char **argv) {
                                 set_screen_space();
                                 en->pos = v2(-10.0f * tile_width, -10.0f * tile_width);
                             }
+                            render_sprite_entity(en);
                             break;
                         case ARCH_player:
 		                    set_world_space();
@@ -597,6 +633,7 @@ int entry(int argc, char **argv) {
                                     world->player_selected = i;
                                 }
                             }
+                            render_sprite_entity(en);
                             break;
                         case ARCH_monster:
 		                    set_world_space();
@@ -619,25 +656,29 @@ int entry(int argc, char **argv) {
                                 en->time.current = 0;
                                 world->entities[target_player].health.current -= (en->strength - world->entities[target_player].defense);
                             }
+                            render_sprite_entity(en);
+                            break;
+                        case ARCH_text: 
+                            set_screen_space();
+                            push_z_layer(layer_text);
+                            
+                            if(world->ux_state != UX_default){
+                                // commands
+                                {
+                                    Matrix4 xform = m4_scalar(1.0);
+                                    string text = en->name;
+                                    xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
+                                    draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), (world->ux_cmd_pos == CMD_attack)?COLOR_YELLOW:COLOR_WHITE);
+                                }
+                            }
                             break;
                         default:
 		                    set_world_space();
                             push_z_layer(layer_world);
                             break;
                     }
-                    //:sprite 
-                    {
-                        Sprite* sprite = get_sprite(en->sprite_id);
-                        Matrix4 xform = m4_scalar(1.0);
-                        xform         = m4_translate(xform, v3(0, tile_width * -0.5, 0));
-                        xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
-                        xform         = m4_translate(xform, v3(get_sprite_size(sprite).x * -0.5, 0.0, 0));
-                        Vector4 col = COLOR_WHITE;
-                        draw_image_xform(sprite->image, xform, get_sprite_size(sprite), col);
-                        // debug pos 
-                        //draw_text(font, sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
-                        pop_z_layer();
-                    }
+                    pop_z_layer();
+                   
                     en->time.current = (en->time.current + (en->time.rate * delta) >= en->time.max)? en->time.max: en->time.current + (en->time.rate * delta);
                     if(!en->is_invincible){
                         if(en->health.current <= 0){
@@ -663,24 +704,6 @@ int entry(int argc, char **argv) {
                 Matrix4 xform = m4_identity;
                 xform = m4_translate(xform, v3(0, y_pos, 0.0));
                 draw_rect_xform(xform, v2(screen_width, -y_pos), bg_box_col);
-            }
-
-            float y_pos = screen_height/3.0f;
-            if(world->ux_state != UX_default){
-                // commands
-                {
-                    push_z_layer(layer_text);
-                    Matrix4 xform = m4_identity;
-                    xform = m4_translate(xform, v3(2.0f * tile_width, y_pos - (font_height + font_padding)* 0.1, 0.0));
-                    draw_text_xform(font, STR("Attack"), font_height, xform, v2(0.1, 0.1), (world->ux_cmd_pos == CMD_attack)?COLOR_YELLOW:COLOR_WHITE);
-                    xform = m4_translate(xform, v3(0, - (font_height + font_padding)* 0.1, 0.0));
-                    draw_text_xform(font, STR("Magic"), font_height, xform, v2(0.1, 0.1), (world->ux_cmd_pos == CMD_magic)?COLOR_YELLOW:COLOR_WHITE);
-                    xform = m4_translate(xform, v3(0, - (font_height + font_padding)* 0.1, 0.0));
-                    draw_text_xform(font, STR("Items"), font_height, xform, v2(0.1, 0.1),  (world->ux_cmd_pos == CMD_items)?COLOR_YELLOW:COLOR_WHITE);
-                    pop_z_layer();
-
-
-                }
             }
 
             pop_z_layer();
