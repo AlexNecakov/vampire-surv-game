@@ -25,8 +25,6 @@ float64 monster_tp_max = 100;
 float64 monster_tp_rate = 25;
 
 //:math
-#define m4_identity m4_make_scale(v3(1, 1, 1))
-
 inline float v2_dist(Vector2 a, Vector2 b) {
     return v2_length(v2_sub(a, b));
 }
@@ -116,7 +114,7 @@ Draw_Quad ndc_quad_to_screen_quad(Draw_Quad ndc_quad) {
 	Matrix4 proj = draw_frame.projection;
 	Matrix4 view = draw_frame.view;
 
-	Matrix4 ndc_to_screen_space = m4_identity;
+	Matrix4 ndc_to_screen_space = m4_scalar(1.0);
 	ndc_to_screen_space = m4_mul(ndc_to_screen_space, m4_inverse(proj));
 	ndc_to_screen_space = m4_mul(ndc_to_screen_space, view);
 
@@ -701,7 +699,7 @@ int entry(int argc, char **argv) {
             push_z_layer(layer_ui);
             // bg box
             {
-                Matrix4 xform = m4_identity;
+                Matrix4 xform = m4_scalar(1.0);
                 xform = m4_translate(xform, v3(0, y_pos, 0.0));
                 draw_rect_xform(xform, v2(screen_width, -y_pos), bg_box_col);
             }
@@ -831,7 +829,7 @@ int entry(int argc, char **argv) {
             }
             string text = STR("fps: %i");
             text = sprint(temp_allocator, text, last_fps);
-            Matrix4 xform = m4_identity;
+            Matrix4 xform = m4_scalar(1.0);
             xform = m4_translate(xform, v3(0, screen_height - (font_height + font_padding) * 0.1, 0.0));
             draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
         }
