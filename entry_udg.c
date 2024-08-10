@@ -658,15 +658,15 @@ int entry(int argc, char **argv) {
         {
             set_screen_space();
             push_z_layer(layer_ui);
+            // bg box
+            {
+                Matrix4 xform = m4_identity;
+                xform = m4_translate(xform, v3(0, y_pos, 0.0));
+                draw_rect_xform(xform, v2(screen_width, -y_pos), bg_box_col);
+            }
 
             float y_pos = screen_height/3.0f;
             if(world->ux_state != UX_default){
-                // bg box
-                {
-                    Matrix4 xform = m4_identity;
-                    xform = m4_translate(xform, v3(0, y_pos, 0.0));
-                    draw_rect_xform(xform, v2(screen_width, -y_pos), bg_box_col);
-                }
                 // commands
                 {
                     push_z_layer(layer_text);
