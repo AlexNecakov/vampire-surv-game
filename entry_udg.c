@@ -2,6 +2,7 @@
 #define MAX_ENTITY_COUNT 1024
 #define MAX_PLAYER_COUNT 4
 #define MAX_MONSTER_COUNT MAX_ENTITY_COUNT
+#define MAX_ACTION_COUNT 1024
 const u32 font_height = 64;
 const float32 font_padding = (float32)font_height/10.0f;
 const float32 spriteSheetWidth = 240.0;
@@ -18,8 +19,8 @@ float screen_height = 135.0;
 
 float64 player_hp_max = 50;
 float64 player_mp_max = 25;
-float64 player_tp_max = 500;
-float64 player_tp_rate = 75;
+float64 player_tp_max = 100;
+float64 player_tp_rate = 25;
 float64 monster_hp_max = 50;
 float64 monster_mp_max = 15;
 float64 monster_tp_max = 100;
@@ -179,7 +180,9 @@ typedef enum UXState {
 	UX_nil,
 	UX_default,
 	UX_command,
+    //UX_target,
 	UX_attack,
+    //UX_menu for spells
 	UX_magic,
 	UX_items,
 	UX_debug,
@@ -199,6 +202,14 @@ typedef struct Bar {
     float64 rate;
 } Bar;
 
+//:action
+typedef enum ActionArchetype{
+    ACT_nil = 0,
+    ACT_attack,
+    ACT_spell,
+    ACT_item,
+} ActionArchetype;
+
 //:element
 typedef enum Element {
     ELEM_nil = 0,
@@ -208,16 +219,40 @@ typedef enum Element {
     ELEM_thunder,
 } Element;
 
-//:action
-typedef struct ActionData {
-    string name;
-} ActionData;
+//:stats
+typedef enum AbilityScore {
+    ABI_nil = 0,
+    ABI_str,
+    ABI_int,
+    ABI_dex,
+    ABI_con,
+    ABI_wis,
+    ABI_cha,
+    ABI_MAX,
+} AbilityScore;
 
-//:spell
-typedef struct Spell {
+typedef struct Action {
+    bool is_valid;
     string name;
+    ActionArchetype arch;
+    Element element;
+    float64 base_damage;
+    AbilityScore scale_stat;
+    AbilityScore target_stat;
+    float64 cost_time;
+    float64 cost_mana;
+    float64 cost_health;
+} Action;
 
-} Spell;
+
+void setup_action_attack(Action* act) {
+    act->name = STR("Attack");
+    act->arch = ACT_attack;
+    act->base_damage = 5;
+    act->scale_stat = ABI_str;
+    act->target_stat = ABI_con;
+    act->cost_time = 100;
+}
 
 //:entity
 typedef enum EntityArchetype{
@@ -244,13 +279,13 @@ typedef struct Entity{
     Bar time;
     float64 limit;
     bool is_invincible;
-    s32 strength;
-    s32 defense;
+    float64 stat_block[ABI_MAX];
 } Entity;
 
 //:world
 typedef struct World{
 	Entity entities[MAX_ENTITY_COUNT];
+	Action actions[MAX_ACTION_COUNT];
 	s32 entity_selected;
 	s32 player_selected;
     s32 num_players;
@@ -279,6 +314,24 @@ Entity* entity_create() {
 
 void entity_destroy(Entity* entity){
     memset(entity, 0, sizeof(Entity));
+}
+
+Action* action_create() {
+    Action* action_found = 0;
+    for (int i = 0; i < MAX_ACTION_COUNT; i++){
+        Action* existing_action = &world->actions[i];
+        if (!existing_action->is_valid){
+            action_found = existing_action;
+            break;
+        }
+    }
+    assert(action_found, "No more free entities!");
+    action_found->is_valid = true;
+    return action_found;
+}
+
+void action_destroy(Action* action){
+    memset(action, 0, sizeof(Action));
 }
 
 void select_first_entity_by_arch(EntityArchetype arch_match, bool checkTime, s32* selectIndex){
@@ -381,7 +434,13 @@ void select_random_monster(bool checkTime, s32* selectIndex) {
     }
 }
 
-void apply_damage_to_entity(Entity* source_en, Entity* target_en, ActionData action){
+void apply_damage_to_entity(Entity* source_en, Entity* target_en, Action* act){
+    float64 scaled_damage = 0;
+    scaled_damage += act->base_damage;
+    scaled_damage += source_en->stat_block[act->scale_stat];
+    scaled_damage -= target_en->stat_block[act->target_stat];
+    
+    target_en->health.current -= scaled_damage;
 }
 
 void render_sprite_entity(Entity* en){
@@ -405,8 +464,8 @@ void setup_player(Entity* en) {
     en->time.max = player_tp_max;
     en->time.current = 0;
     en->time.rate = player_tp_rate;
-    en->strength = 25;
-    en->defense = 10;
+    en->stat_block[ABI_str] = 25;
+    en->stat_block[ABI_con] = 10;
     en->color = COLOR_WHITE;
     world->num_players++;
     //en->is_invincible = true;
@@ -445,8 +504,8 @@ void setup_monster(Entity* en) {
     en->time.max = monster_tp_max;
     en->time.current = 0;
     en->time.rate = monster_tp_rate;
-    en->strength = 15;
-    en->defense = 5;
+    en->stat_block[ABI_str] = 25;
+    en->stat_block[ABI_con] = 10;
     en->color = COLOR_WHITE;
     world->num_monsters++;
 }
@@ -494,6 +553,9 @@ int entry(int argc, char **argv) {
 	assert(font, "Failed loading arial.ttf, %d", GetLastError());	
 	render_atlas_if_not_yet_rendered(font, 32, 'A');
 	
+    Action* attack_act = action_create();
+    setup_action_attack(attack_act);
+
     Entity* cursor_en = entity_create();
     setup_cursor(cursor_en);
         
@@ -664,7 +726,7 @@ int entry(int argc, char **argv) {
                                 s32 target_player = 0;
                                 select_random_player(false, &target_player);
                                 en->time.current = 0;
-                                world->entities[target_player].health.current -= (en->strength - world->entities[target_player].defense);
+                                apply_damage_to_entity(en, &world->entities[target_player], attack_act); 
                             }
                             render_sprite_entity(en);
                             break;
@@ -783,8 +845,8 @@ int entry(int argc, char **argv) {
                     consume_key_just_pressed(KEY_ENTER);
                     Entity* selected_en = &world->entities[world->entity_selected];
                     Entity* selected_player = &world->entities[world->player_selected];
-                    selected_en->health.current -= (selected_player->strength - selected_en->defense);
-                    selected_player->time.current = 0;
+                    apply_damage_to_entity(selected_player, selected_en, attack_act); 
+                    selected_player->time.current -= attack_act->cost_time;
                     world->ux_state = UX_default;
                     world->ux_cmd_pos = CMD_attack;
                 }
