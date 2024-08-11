@@ -64,18 +64,15 @@ Vector2 world_to_screen(Vector2 world_pos){
     Vector2 screen_pos;
     return screen_pos;
 }
-Vector2 screen_to_world() {
-	float mouse_x = input_frame.mouse_x;
-	float mouse_y = input_frame.mouse_y;
-	//log("%f, %f", mouse_x, mouse_y);
+Vector2 screen_to_world(Vector2 screen_pos) {
 	Matrix4 proj = draw_frame.projection;
 	Matrix4 view = draw_frame.view;
 	float window_w = window.width;
 	float window_h = window.height;
 
 	// Normalize the mouse coordinates
-	float ndc_x = (mouse_x / (window_w * 0.5f)) - 1.0f;
-	float ndc_y = (mouse_y / (window_h * 0.5f)) - 1.0f;
+	float ndc_x = (screen_pos.x / (window_w * 0.5f)) - 1.0f;
+	float ndc_y = (screen_pos.y / (window_h * 0.5f)) - 1.0f;
 
 	// Transform to world coordinates
 	Vector4 world_pos = v4(ndc_x, ndc_y, 0, 1);
@@ -213,6 +210,7 @@ typedef enum ActionArchetype{
     ACT_attack,
     ACT_spell,
     ACT_item,
+    ACT_defend,
 } ActionArchetype;
 
 //:element
@@ -222,6 +220,7 @@ typedef enum Element {
     ELEM_fire,
     ELEM_ice,
     ELEM_thunder,
+    ELEM_MAX,
 } Element;
 
 //:stats
@@ -440,25 +439,7 @@ void select_random_monster(bool checkTime, s32* selectIndex) {
     }
 }
 
-void apply_damage_to_entity(Entity* source_en, Entity* target_en, Action* act){
-    float64 scaled_damage = 0;
-    scaled_damage += act->base_damage;
-    scaled_damage += source_en->stat_block[act->scale_stat];
-    scaled_damage -= target_en->stat_block[act->target_stat];
-    
-    target_en->health.current -= scaled_damage;
-    
-    {
-        set_world_space();
-        push_z_layer(layer_text);
-        Matrix4 xform = m4_scalar(1.0);
-        Sprite* sprite = get_sprite(target_en->sprite_id);
-        xform = m4_translate(xform, v3(target_en->pos.x, target_en->pos.y, 0));
-        xform = m4_translate(xform, v3(0, -get_sprite_size(sprite).y, 0));
-        draw_text_xform(world->font, sprint(temp_allocator, STR("%f"), scaled_damage), font_height, xform, v2(0.1, 0.1), COLOR_RED);
-        pop_z_layer();
-    }
-}
+
 
 void render_sprite_entity(Entity* en){
     Sprite* sprite = get_sprite(en->sprite_id);
@@ -527,10 +508,15 @@ void setup_monster(Entity* en) {
     world->num_monsters++;
 }
 
-//:item data
-typedef struct ItemData {
-	int amount;
-} ItemData; 
+void apply_damage_to_entity(Entity* source_en, Entity* target_en, Action* act){
+    float64 scaled_damage = 0;
+    scaled_damage += act->base_damage;
+    scaled_damage += source_en->stat_block[act->scale_stat];
+    scaled_damage -= target_en->stat_block[act->target_stat];
+    
+    target_en->health.current -= scaled_damage;
+    log("%s uses %s on %s. dealt %.2f damage!", source_en->name, act->name, target_en->name, scaled_damage); 
+}
 
 //:entry
 int entry(int argc, char **argv) {
@@ -592,6 +578,7 @@ int entry(int argc, char **argv) {
         setup_monster(en);
         en->pos = v2(-4 * tile_width, -i * tile_width + 4* tile_width);
         en->pos = round_v2_to_tile(en->pos);
+        en->name = sprint(temp_allocator, STR("monster%i"), i);
     }
 
 
