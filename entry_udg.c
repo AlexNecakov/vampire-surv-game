@@ -3,17 +3,22 @@
 #define MAX_PLAYER_COUNT 4
 #define MAX_MONSTER_COUNT MAX_ENTITY_COUNT
 #define MAX_ACTION_COUNT 1024
+
 const u32 font_height = 64;
 const float32 font_padding = (float32)font_height/10.0f;
+
 const float32 spriteSheetWidth = 240.0;
 const s32 tile_width = 16;
+
 const s32 layer_world = 10;
 const s32 layer_entity = 20;
 const s32 layer_ui_bg = 30;
 const s32 layer_ui_fg = 35;
 const s32 layer_text = 40;
 const s32 layer_cursor = 50;
+
 Vector4 bg_box_col = {0, 0, 1.0, 0.9};
+
 float screen_width = 240.0;
 float screen_height = 135.0;
 
@@ -295,6 +300,7 @@ typedef struct World{
 	Matrix4 world_proj;
 	Matrix4 world_view;
     bool debug_render;
+    Gfx_Font* font;
 } World;
 World* world = 0;
 
@@ -441,6 +447,17 @@ void apply_damage_to_entity(Entity* source_en, Entity* target_en, Action* act){
     scaled_damage -= target_en->stat_block[act->target_stat];
     
     target_en->health.current -= scaled_damage;
+    
+    {
+        set_world_space();
+        push_z_layer(layer_text);
+        Matrix4 xform = m4_scalar(1.0);
+        Sprite* sprite = get_sprite(target_en->sprite_id);
+        xform = m4_translate(xform, v3(target_en->pos.x, target_en->pos.y, 0));
+        xform = m4_translate(xform, v3(0, -get_sprite_size(sprite).y, 0));
+        draw_text_xform(world->font, sprint(temp_allocator, STR("%f"), scaled_damage), font_height, xform, v2(0.1, 0.1), COLOR_RED);
+        pop_z_layer();
+    }
 }
 
 void render_sprite_entity(Entity* en){
@@ -451,7 +468,7 @@ void render_sprite_entity(Entity* en){
     xform         = m4_translate(xform, v3(get_sprite_size(sprite).x * -0.5, 0.0, 0));
     draw_image_xform(sprite->image, xform, get_sprite_size(sprite), en->color);
     // debug pos 
-    //draw_text(font, sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
+    //draw_text(world->font, sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
 }
 
 void setup_player(Entity* en) {
@@ -533,6 +550,9 @@ int entry(int argc, char **argv) {
     world->ux_state = UX_default;
     world->ux_cmd_pos = CMD_attack;
     world->debug_render = true;
+    world->font = load_font_from_disk(STR("C:/windows/fonts/arial.ttf"), get_heap_allocator());
+	assert(world->font, "Failed loading arial.ttf, %d", GetLastError());	
+	render_atlas_if_not_yet_rendered(world->font, 32, 'A');
 
     sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\undefined.png"), get_heap_allocator()) };
     sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\dude.png"), get_heap_allocator()) };
@@ -548,10 +568,6 @@ int entry(int argc, char **argv) {
 			assert(sprite->image, "Sprite was not setup properly");
 		}
 	}
-	
-    Gfx_Font *font = load_font_from_disk(STR("C:/windows/fonts/arial.ttf"), get_heap_allocator());
-	assert(font, "Failed loading arial.ttf, %d", GetLastError());	
-	render_atlas_if_not_yet_rendered(font, 32, 'A');
 	
     Action* attack_act = action_create();
     setup_action_attack(attack_act);
@@ -688,7 +704,7 @@ int entry(int argc, char **argv) {
                                 Matrix4 xform = m4_scalar(1.0);
                                 //xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
                                 xform = m4_translate(xform, v3(9.0f * tile_width, y_pos - (font_height + font_padding) * 0.1 * i, 0)); 
-                                draw_text_xform(font, en->name, font_height, xform, v2(0.1, 0.1), (world->player_selected==i)?COLOR_YELLOW:COLOR_WHITE);
+                                draw_text_xform(world->font, en->name, font_height, xform, v2(0.1, 0.1), (world->player_selected==i)?COLOR_YELLOW:COLOR_WHITE);
                                 xform = m4_translate(xform, v3(30, 0, 0));
                                 draw_rect_xform(xform, v2(25, 2.5), COLOR_RED);
                                 draw_rect_xform(xform, v2((en->health.current / en->health.max) * 25.0f, 2.5), COLOR_GREEN);
@@ -718,7 +734,7 @@ int entry(int argc, char **argv) {
                                 xform = m4_translate(xform, v3(-0.5 * get_sprite_size(sprite).x, -.6 * get_sprite_size(sprite).y, 0));
                                 draw_rect_xform(xform, v2(en->health.max * 0.1, 2.5), COLOR_RED);
                                 draw_rect_xform(xform, v2(en->health.current * 0.1, 2.5), COLOR_GREEN);
-                                //draw_text(font, sprint(temp_allocator, STR("%f / %f"), en->health.current, en->health.max), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
+                                //draw_text(world->font, sprint(temp_allocator, STR("%f / %f"), en->health.current, en->health.max), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
                                 pop_z_layer();
                             }
                             push_z_layer(layer_world);
@@ -736,7 +752,7 @@ int entry(int argc, char **argv) {
                             Matrix4 xform = m4_scalar(1.0);
                             string text = en->name;
                             xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
-                            draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), en->color);
+                            draw_text_xform(world->font, text, font_height, xform, v2(0.1, 0.1), en->color);
                             break;
                         default:
 		                    set_world_space();
