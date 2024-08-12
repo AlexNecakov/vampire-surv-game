@@ -3,6 +3,7 @@
 #define MAX_PLAYER_COUNT 4
 #define MAX_MONSTER_COUNT MAX_ENTITY_COUNT
 #define MAX_ACTION_COUNT 1024
+#define MAX_MENU_LAYERS 4
 
 const u32 font_height = 64;
 const float32 font_padding = (float32)font_height/10.0f;
@@ -197,6 +198,17 @@ typedef enum UXCommandPos {
     CMD_MAX,
 } UXCommandPos;
 
+void push_menu(s32 z) {
+	assert(draw_frame.z_count < Z_STACK_MAX, "Too many z layers pushed. You can pop with pop_z_layer() when you are done drawing to it.");
+	
+	draw_frame.z_stack[draw_frame.z_count] = z;
+	draw_frame.z_count += 1;
+}
+void pop_menu() {
+	assert(draw_frame.z_count > 0, "No Z layers to pop!");
+	draw_frame.z_count -= 1;
+}
+
 //:bar
 typedef struct Bar {
     float64 max;
@@ -208,7 +220,7 @@ typedef struct Bar {
 typedef enum ActionArchetype{
     ACT_nil = 0,
     ACT_attack,
-    ACT_spell,
+    ACT_magic,
     ACT_item,
     ACT_defend,
 } ActionArchetype;
@@ -220,6 +232,8 @@ typedef enum Element {
     ELEM_fire,
     ELEM_ice,
     ELEM_thunder,
+    ELEM_light,
+    ELEM_dark,
     ELEM_MAX,
 } Element;
 
@@ -239,7 +253,7 @@ typedef struct Action {
     bool is_valid;
     string name;
     ActionArchetype arch;
-    Element element;
+    Element elem;
     float64 base_damage;
     AbilityScore scale_stat;
     AbilityScore target_stat;
@@ -255,6 +269,41 @@ void setup_action_attack(Action* act) {
     act->base_damage = 5;
     act->scale_stat = ABI_str;
     act->target_stat = ABI_con;
+    act->cost_time = 100;
+}
+
+void setup_action_fire(Action* act) {
+    act->name = STR("Fire");
+    act->arch = ACT_magic;
+    act->base_damage = 15;
+    act->scale_stat = ABI_int;
+    act->target_stat = ABI_wis;
+    act->cost_time = 100;
+    act->cost_mana = 15;
+    act->elem = ELEM_fire;
+}
+
+void setup_action_defend(Action* act) {
+    act->name = STR("Defend");
+    act->arch = ACT_defend;
+    act->base_damage = 0;
+    act->scale_stat = ABI_con;
+    act->cost_time = 20;
+}
+
+void setup_action_cure(Action* act) {
+    act->name = STR("Cure");
+    act->arch = ACT_magic;
+    act->base_damage = -40;
+    act->scale_stat = ABI_wis;
+    act->cost_time = 100;
+    act->cost_mana = 15;
+}
+
+void setup_action_potion(Action* act) {
+    act->name = STR("Potion");
+    act->arch = ACT_item;
+    act->base_damage = -60;
     act->cost_time = 100;
 }
 
@@ -284,6 +333,7 @@ typedef struct Entity{
     float64 limit;
     bool is_invincible;
     float64 stat_block[ABI_MAX];
+    float64 res_block[ELEM_MAX];
 } Entity;
 
 //:world
@@ -296,6 +346,7 @@ typedef struct World{
     s32 num_monsters;
 	UXState ux_state;
 	UXCommandPos ux_cmd_pos;
+    s32 ux_spell_pos;
 	Matrix4 world_proj;
 	Matrix4 world_view;
     bool debug_render;
@@ -330,7 +381,7 @@ Action* action_create() {
             break;
         }
     }
-    assert(action_found, "No more free entities!");
+    assert(action_found, "No more free actions!");
     action_found->is_valid = true;
     return action_found;
 }
@@ -438,8 +489,6 @@ void select_random_monster(bool checkTime, s32* selectIndex) {
         select_next_entity_by_arch(ARCH_monster, checkTime, selectIndex);
     }
 }
-
-
 
 void render_sprite_entity(Entity* en){
     Sprite* sprite = get_sprite(en->sprite_id);
@@ -557,6 +606,14 @@ int entry(int argc, char **argv) {
 	
     Action* attack_act = action_create();
     setup_action_attack(attack_act);
+    Action* fire_act = action_create();
+    setup_action_fire(fire_act);
+    Action* defend_act = action_create();
+    setup_action_defend(defend_act);
+    Action* cure_act = action_create();
+    setup_action_cure(cure_act);
+    Action* potion_act = action_create();
+    setup_action_potion(potion_act);
 
     Entity* cursor_en = entity_create();
     setup_cursor(cursor_en);
