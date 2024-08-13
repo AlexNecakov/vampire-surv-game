@@ -590,8 +590,8 @@ int entry(int argc, char **argv) {
 	render_atlas_if_not_yet_rendered(world->font, 32, 'A');
 
     sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\undefined.png"), get_heap_allocator()) };
-    sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\dude.png"), get_heap_allocator()) };
-    sprites[SPRITE_monster] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\bat.png"), get_heap_allocator()) };
+    sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\mannequin.png"), get_heap_allocator()) };
+    sprites[SPRITE_monster] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\metroid.png"), get_heap_allocator()) };
     sprites[SPRITE_cursor] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\cursor.png"), get_heap_allocator()) };
     sprites[SPRITE_target] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\target.png"), get_heap_allocator()) };
     sprites[SPRITE_attack] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\attack.png"), get_heap_allocator()) };
@@ -625,7 +625,7 @@ int entry(int argc, char **argv) {
 		Entity* en = entity_create();
 		setup_player(en);
         en->name = sprint(temp_allocator, STR("player%i"), i);
-		en->pos = v2(0, tile_width*-i + 4 * tile_width);
+		en->pos = v2(tile_width * i + 4 * tile_width, tile_width*-i + 3 * tile_width);
 		en->pos = round_v2_to_tile(en->pos);
         en->time.current = get_random_float32_in_range(en->time.max * 0.1, en->time.max * 0.7);
 	}
@@ -633,7 +633,7 @@ int entry(int argc, char **argv) {
     for (int i = 0; i < 4; i++) {
         Entity* en = entity_create();
         setup_monster(en);
-        en->pos = v2(-4 * tile_width, -i * tile_width + 4* tile_width);
+        en->pos = v2(-2 * i * tile_width, -i * tile_width + 3 * tile_width);
         en->pos = round_v2_to_tile(en->pos);
         en->name = sprint(temp_allocator, STR("monster%i"), i);
     }
@@ -747,9 +747,9 @@ int entry(int argc, char **argv) {
                                 //Sprite* sprite = get_sprite(en->sprite_id);
                                 Matrix4 xform = m4_scalar(1.0);
                                 //xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
-                                xform = m4_translate(xform, v3(9.0f * tile_width, y_pos - (font_height + font_padding) * 0.1 * i, 0)); 
+                                xform = m4_translate(xform, v3(9.5f * tile_width, y_pos - (font_height + font_padding) * 0.1 * i, 0)); 
                                 draw_text_xform(world->font, en->name, font_height, xform, v2(0.1, 0.1), (world->player_selected==i)?COLOR_YELLOW:COLOR_WHITE);
-                                xform = m4_translate(xform, v3(30, 0, 0));
+                                xform = m4_translate(xform, v3(25, 0, 0));
                                 draw_rect_xform(xform, v2(25, 2.5), COLOR_RED);
                                 draw_rect_xform(xform, v2((en->health.current / en->health.max) * 25.0f, 2.5), COLOR_GREEN);
                                 xform = m4_translate(xform, v3(30, 0, 0));
