@@ -708,6 +708,10 @@ int entry(int argc, char **argv) {
                                 Sprite* sprite = get_sprite(selected_en->sprite_id);
                                 en->pos = v2(selected_en->pos.x - get_sprite_size(sprite).x, selected_en->pos.y);
                             }
+                            else if(world->ux_state == UX_magic){
+		                        set_screen_space();
+                                en->pos = v2(tile_width * 2.5, y_pos - (tile_width * 0.25f) - (font_height + font_padding) * world->ux_spell_pos * 0.1);
+                            }
                             else{
                                 set_screen_space();
                                 en->pos = v2(-10.0f * tile_width, -10.0f * tile_width);
@@ -810,6 +814,7 @@ int entry(int argc, char **argv) {
             }
         }
 
+        int numSpells = 0;
         //:ui loop 
         {
             set_screen_space();
@@ -839,8 +844,9 @@ int entry(int argc, char **argv) {
                 for(int i = 0; i< MAX_ACTION_COUNT; i++){
                     Action* action = &selected_player->actions[i];
                     if(action->is_valid && action->arch == ACT_magic){
-                        draw_text_xform(world->font, action->name, font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
+                        draw_text_xform(world->font, action->name, font_height, xform, v2(0.1, 0.1), ((numSpells==world->ux_spell_pos)?COLOR_YELLOW:COLOR_WHITE));
                         xform = m4_translate(xform, v3(0, -(font_height + font_padding) *0.1, 0));
+                        numSpells++;
                     } 
                 }
             }
@@ -886,6 +892,7 @@ int entry(int argc, char **argv) {
                             break;
                         case CMD_magic:
                             world->ux_state = UX_magic;
+                            world->ux_spell_pos = 0;
                             break;
                         case CMD_items:
                             world->ux_state = UX_attack;
@@ -923,10 +930,12 @@ int entry(int argc, char **argv) {
             //:input magic 
             else if(world->ux_state == UX_magic){
                 if (is_key_just_pressed('J')) {
-                    consume_key_just_pressed('J');
+                    world->ux_spell_pos = (world->ux_spell_pos + 1) % numSpells;
+                    world->ux_spell_pos = (world->ux_spell_pos < 0)? numSpells - 1: world->ux_spell_pos;
                 }
                 else if (is_key_just_pressed('K')) {
-                    consume_key_just_pressed('K');
+                    world->ux_spell_pos = (world->ux_spell_pos - 1) % numSpells;
+                    world->ux_spell_pos = (world->ux_spell_pos < 0)? numSpells - 1: world->ux_spell_pos;
                 }
                 else if (is_key_just_pressed(KEY_ENTER)){
                     consume_key_just_pressed(KEY_ENTER);
