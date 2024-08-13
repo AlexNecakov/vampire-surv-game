@@ -183,9 +183,7 @@ typedef enum UXState {
 	UX_nil,
 	UX_default,
 	UX_command,
-    //UX_target,
-	UX_attack,
-    //UX_menu for spells
+    UX_target,
 	UX_magic,
 	UX_items,
 	UX_debug,
@@ -328,14 +326,15 @@ typedef struct Entity{
 //:world
 typedef struct World{
 	Entity entities[MAX_ENTITY_COUNT];
-	Action actions[MAX_ACTION_COUNT];
 	s32 entity_selected;
 	s32 player_selected;
+	s32 action_selected;
     s32 num_players;
     s32 num_monsters;
 	UXState ux_state;
+	UXState ux_state_prev;
 	UXCommandPos ux_cmd_pos;
-    s32 ux_spell_pos;
+    s32 ux_list_pos;
 	Matrix4 world_proj;
 	Matrix4 world_view;
     bool debug_render;
@@ -401,6 +400,7 @@ void select_first_entity_by_arch(EntityArchetype arch_match, bool checkTime, s32
     
     if(tries > MAX_ENTITY_COUNT){
         //no matching entity found
+        world->ux_state_prev = world->ux_state;
         world->ux_state = UX_default;
     }
 }
@@ -425,6 +425,7 @@ void select_next_entity_by_arch(EntityArchetype arch_match, bool checkTime, s32*
     }
     if(tries > MAX_ENTITY_COUNT){
         //no matching entity found
+        world->ux_state_prev = world->ux_state;
         world->ux_state = UX_default;
     }
 }
@@ -449,6 +450,7 @@ void select_prev_entity_by_arch(EntityArchetype arch_match, bool checkTime, s32*
     }
     if(tries > MAX_ENTITY_COUNT){
         //no matching entity found
+        world->ux_state_prev = world->ux_state;
         world->ux_state = UX_default;
     }
 }
@@ -583,6 +585,7 @@ int entry(int argc, char **argv) {
     world = alloc(get_heap_allocator(), sizeof(World));
     memset(world, 0, sizeof(World));
     world->ux_state = UX_default;
+    world->ux_state_prev = world->ux_state;
     world->ux_cmd_pos = CMD_attack;
     world->debug_render = true;
     world->font = load_font_from_disk(STR("C:/windows/fonts/arial.ttf"), get_heap_allocator());
@@ -702,7 +705,7 @@ int entry(int argc, char **argv) {
 		                        set_screen_space();
                                 en->pos = v2(tile_width * 0.5, y_pos - (tile_width * 0.25f) - (font_height + font_padding) * world->ux_cmd_pos * 0.1);
                             }
-                            else if(world->ux_state == UX_attack){
+                            else if(world->ux_state == UX_target){
 		                        set_world_space();
                                 Entity* selected_en = &world->entities[world->entity_selected];
                                 Sprite* sprite = get_sprite(selected_en->sprite_id);
@@ -710,7 +713,7 @@ int entry(int argc, char **argv) {
                             }
                             else if(world->ux_state == UX_magic){
 		                        set_screen_space();
-                                en->pos = v2(tile_width * 2.5, y_pos - (tile_width * 0.25f) - (font_height + font_padding) * world->ux_spell_pos * 0.1);
+                                en->pos = v2(tile_width * 2.5, y_pos - (tile_width * 0.25f) - (font_height + font_padding) * world->ux_list_pos * 0.1);
                             }
                             else{
                                 set_screen_space();
@@ -720,7 +723,7 @@ int entry(int argc, char **argv) {
                             break;
                         case ARCH_target:
                             push_z_layer(layer_cursor);
-                            if(world->ux_state == UX_attack || world->ux_state == UX_command){
+                            if(world->ux_state != UX_default){
 		                        set_world_space();
                                 Entity* selected_player = &world->entities[world->player_selected];
                                 Sprite* sprite = get_sprite(selected_player->sprite_id);
@@ -754,6 +757,7 @@ int entry(int argc, char **argv) {
                             push_z_layer(layer_world);
                             if(en->time.current >= en->time.max){
                                 if(world->ux_state == UX_default){
+                                    world->ux_state_prev = world->ux_state;
                                     world->ux_state = UX_command;
                                     world->player_selected = i;
                                 }
@@ -844,7 +848,7 @@ int entry(int argc, char **argv) {
                 for(int i = 0; i< MAX_ACTION_COUNT; i++){
                     Action* action = &selected_player->actions[i];
                     if(action->is_valid && action->arch == ACT_magic){
-                        draw_text_xform(world->font, action->name, font_height, xform, v2(0.1, 0.1), ((numSpells==world->ux_spell_pos)?COLOR_YELLOW:COLOR_WHITE));
+                        draw_text_xform(world->font, action->name, font_height, xform, v2(0.1, 0.1), ((numSpells==world->ux_list_pos)?COLOR_YELLOW:COLOR_WHITE));
                         xform = m4_translate(xform, v3(0, -(font_height + font_padding) *0.1, 0));
                         numSpells++;
                     } 
@@ -862,9 +866,11 @@ int entry(int argc, char **argv) {
             //error conds
             Entity* selected_player = &world->entities[world->player_selected];
             if(selected_player->time.current < selected_player->time.max){
+                world->ux_state_prev = world->ux_state;
                 world->ux_state = UX_default;
             }
             if(selected_player->health.current <= 0){
+                world->ux_state_prev = world->ux_state;
                 world->ux_state = UX_default;
                 selected_player->time.rate = 0;
                 selected_player->time.current = 0;
@@ -887,15 +893,24 @@ int entry(int argc, char **argv) {
                 else if (is_key_just_pressed(KEY_ENTER)) {
                     switch (world->ux_cmd_pos){
                         case CMD_attack:
-                            world->ux_state = UX_attack;
+                            world->ux_state_prev = world->ux_state;
+                            world->ux_state = UX_target;
                             select_first_entity_by_arch(ARCH_monster, false, &world->entity_selected);
+                            for(int i = 0; i< MAX_ACTION_COUNT; i++){
+                            Action* action = &selected_player->actions[i];
+                                if(action->is_valid && action->arch == ACT_attack){
+                                    world->action_selected = i;
+                                } 
+                            }
                             break;
                         case CMD_magic:
+                            world->ux_state_prev = world->ux_state;
                             world->ux_state = UX_magic;
-                            world->ux_spell_pos = 0;
+                            world->ux_list_pos = 0;
                             break;
                         case CMD_items:
-                            world->ux_state = UX_attack;
+                            world->ux_state_prev = world->ux_state;
+                            world->ux_state = UX_target;
                             break;
                         default:
                             break;
@@ -903,7 +918,7 @@ int entry(int argc, char **argv) {
                 }
             }
             //:input attack
-            else if(world->ux_state == UX_attack){
+            else if(world->ux_state == UX_target){
                 if (is_key_just_pressed('J')) {
                     consume_key_just_pressed('J');
                     select_next_entity_by_arch(ARCH_monster, false, &world->entity_selected);
@@ -916,33 +931,52 @@ int entry(int argc, char **argv) {
                     consume_key_just_pressed(KEY_ENTER);
                     Entity* selected_en = &world->entities[world->entity_selected];
                     Entity* selected_player = &world->entities[world->player_selected];
-                    //apply_damage_to_entity(selected_player, selected_en, attack_act); 
-                    //selected_player->time.current -= attack_act->cost_time;
+                    apply_damage_to_entity(selected_player, selected_en, &(selected_player->actions[world->action_selected])); 
+                    selected_player->time.current -= selected_player->actions[world->action_selected].cost_time;
+                    world->ux_state_prev = world->ux_state;
                     world->ux_state = UX_default;
                     world->ux_cmd_pos = CMD_attack;
                 }
                 else if (is_key_just_pressed(KEY_TAB)){
                     consume_key_just_pressed(KEY_TAB);
-                    world->ux_state = UX_command;
+                    world->ux_state = world->ux_state_prev;
                     world->ux_cmd_pos = CMD_attack;
                 }
             }
             //:input magic 
             else if(world->ux_state == UX_magic){
                 if (is_key_just_pressed('J')) {
-                    world->ux_spell_pos = (world->ux_spell_pos + 1) % numSpells;
-                    world->ux_spell_pos = (world->ux_spell_pos < 0)? numSpells - 1: world->ux_spell_pos;
+                    world->ux_list_pos = (world->ux_list_pos + 1) % numSpells;
+                    world->ux_list_pos = (world->ux_list_pos < 0)? numSpells - 1: world->ux_list_pos;
                 }
                 else if (is_key_just_pressed('K')) {
-                    world->ux_spell_pos = (world->ux_spell_pos - 1) % numSpells;
-                    world->ux_spell_pos = (world->ux_spell_pos < 0)? numSpells - 1: world->ux_spell_pos;
+                    world->ux_list_pos = (world->ux_list_pos - 1) % numSpells;
+                    world->ux_list_pos = (world->ux_list_pos < 0)? numSpells - 1: world->ux_list_pos;
                 }
                 else if (is_key_just_pressed(KEY_ENTER)){
                     consume_key_just_pressed(KEY_ENTER);
+                    int localCount = 0;
+                    for(int i = 0; i< MAX_ACTION_COUNT; i++){
+                        Action* action = &selected_player->actions[i];
+                        log("action %d = %s, list pos = %d", i, action->name, world->ux_list_pos);
+                        if(action->is_valid && action->arch == ACT_magic){
+                            log("first if");
+                            if(localCount >= world->ux_list_pos){
+                                world->action_selected = i;
+                                break;
+                            }
+                            else{
+                                localCount++;
+                            }
+                        } 
+                    }
+                    select_first_entity_by_arch(ARCH_monster, false, &world->entity_selected);
+                    world->ux_state_prev = world->ux_state;
+                    world->ux_state = UX_target;
                 }
                 else if (is_key_just_pressed(KEY_TAB)){
                     consume_key_just_pressed(KEY_TAB);
-                    world->ux_state = UX_command;
+                    world->ux_state = world->ux_state_prev;
                     world->ux_cmd_pos = CMD_attack;
                 }
             }
