@@ -3,7 +3,6 @@
 #define MAX_PLAYER_COUNT 4
 #define MAX_MONSTER_COUNT MAX_ENTITY_COUNT
 #define MAX_ACTION_COUNT 1024
-#define MAX_MENU_LAYERS 4
 
 const u32 font_height = 64;
 const float32 font_padding = (float32)font_height/10.0f;
@@ -261,7 +260,7 @@ void setup_action_attack(Action* act) {
 void setup_action_fire(Action* act) {
     act->name = STR("Fire");
     act->arch = ACT_magic;
-    act->base_damage = 15;
+    act->base_damage = 50;
     act->scale_stat = ABI_int;
     act->target_stat = ABI_wis;
     act->cost_time = 100;
@@ -557,6 +556,8 @@ void setup_monster(Entity* en) {
     en->stat_block[ABI_con] = 0;
     en->color = COLOR_WHITE;
     world->num_monsters++;
+    Action* attack_act = action_create(en);
+    setup_action_attack(attack_act);
 }
 
 void apply_damage_to_entity(Entity* source_en, Entity* target_en, Action* act){
@@ -746,8 +747,9 @@ int entry(int argc, char **argv) {
                                 xform = m4_translate(xform, v3(9.5f * tile_width, y_pos - (font_height + font_padding) * 0.1 * i, 0)); 
                                 draw_text_xform(world->font, en->name, font_height, xform, v2(0.1, 0.1), (world->player_selected==i)?COLOR_YELLOW:COLOR_WHITE);
                                 xform = m4_translate(xform, v3(25, 0, 0));
-                                draw_rect_xform(xform, v2(25, 2.5), COLOR_RED);
-                                draw_rect_xform(xform, v2((en->health.current / en->health.max) * 25.0f, 2.5), COLOR_GREEN);
+                                draw_rect_xform(xform, v2(25, 0.5), COLOR_RED);
+                                draw_rect_xform(xform, v2((en->health.current / en->health.max) * 25.0f, 0.5), COLOR_GREEN);
+                                draw_text_xform(world->font, sprint(temp_allocator, STR("%.0f/%.0f"), en->health.current, en->health.max), font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
                                 xform = m4_translate(xform, v3(30, 0, 0));
                                 draw_rect_xform(xform, v2(25, 2.5), COLOR_GREY);
                                 draw_rect_xform(xform, v2((en->time.current / en->time.max) * 25.0f, 2.5), COLOR_YELLOW);
@@ -783,7 +785,7 @@ int entry(int argc, char **argv) {
                                 s32 target_player = 0;
                                 select_random_player(false, &target_player);
                                 en->time.current = 0;
-                                //apply_damage_to_entity(en, &world->entities[target_player], attack_act); 
+                                apply_damage_to_entity(en, &(world->entities[target_player]), &(en->actions[0])); 
                             }
                             render_sprite_entity(en);
                             break;
@@ -839,7 +841,7 @@ int entry(int argc, char **argv) {
             magic_menu_en->color.a = (world->ux_state != UX_default)?1.0:0.1;
             item_menu_en->color.a = (world->ux_state != UX_default)?1.0:0.1;
             
-            if(world->ux_state == UX_magic){
+            if(world->ux_state == UX_magic || (world->ux_state == UX_target && world->ux_state_prev == UX_magic)){
                 Entity* selected_player = &world->entities[world->player_selected];
                 set_screen_space();
                 push_z_layer(layer_text);
