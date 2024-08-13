@@ -958,9 +958,7 @@ int entry(int argc, char **argv) {
                     int localCount = 0;
                     for(int i = 0; i< MAX_ACTION_COUNT; i++){
                         Action* action = &selected_player->actions[i];
-                        log("action %d = %s, list pos = %d", i, action->name, world->ux_list_pos);
                         if(action->is_valid && action->arch == ACT_magic){
-                            log("first if");
                             if(localCount >= world->ux_list_pos){
                                 world->action_selected = i;
                                 break;
