@@ -198,17 +198,6 @@ typedef enum UXCommandPos {
     CMD_MAX,
 } UXCommandPos;
 
-void push_menu(s32 z) {
-	assert(draw_frame.z_count < Z_STACK_MAX, "Too many z layers pushed. You can pop with pop_z_layer() when you are done drawing to it.");
-	
-	draw_frame.z_stack[draw_frame.z_count] = z;
-	draw_frame.z_count += 1;
-}
-void pop_menu() {
-	assert(draw_frame.z_count > 0, "No Z layers to pop!");
-	draw_frame.z_count -= 1;
-}
-
 //:bar
 typedef struct Bar {
     float64 max;
@@ -261,7 +250,6 @@ typedef struct Action {
     float64 cost_mana;
     float64 cost_health;
 } Action;
-
 
 void setup_action_attack(Action* act) {
     act->name = STR("Attack");
@@ -331,6 +319,7 @@ typedef struct Entity{
     Bar mana;
     Bar time;
     float64 limit;
+    Action actions[MAX_ACTION_COUNT];
     bool is_invincible;
     float64 stat_block[ABI_MAX];
     float64 res_block[ELEM_MAX];
@@ -372,10 +361,10 @@ void entity_destroy(Entity* entity){
     memset(entity, 0, sizeof(Entity));
 }
 
-Action* action_create() {
+Action* action_create(Entity* entity) {
     Action* action_found = 0;
     for (int i = 0; i < MAX_ACTION_COUNT; i++){
-        Action* existing_action = &world->actions[i];
+        Action* existing_action = &(entity->actions[i]);
         if (!existing_action->is_valid){
             action_found = existing_action;
             break;
@@ -515,7 +504,18 @@ void setup_player(Entity* en) {
     en->stat_block[ABI_con] = 10;
     en->color = COLOR_WHITE;
     world->num_players++;
-    //en->is_invincible = true;
+
+    Action* attack_act = action_create(en);
+    setup_action_attack(attack_act);
+    Action* fire_act = action_create(en);
+    setup_action_fire(fire_act);
+    Action* defend_act = action_create(en);
+    setup_action_defend(defend_act);
+    Action* cure_act = action_create(en);
+    setup_action_cure(cure_act);
+    Action* potion_act = action_create(en);
+    setup_action_potion(potion_act);
+
 }
 
 void setup_cursor(Entity* en) {
@@ -551,8 +551,8 @@ void setup_monster(Entity* en) {
     en->time.max = monster_tp_max;
     en->time.current = 0;
     en->time.rate = monster_tp_rate;
-    en->stat_block[ABI_str] = 25;
-    en->stat_block[ABI_con] = 10;
+    en->stat_block[ABI_str] = 15;
+    en->stat_block[ABI_con] = 0;
     en->color = COLOR_WHITE;
     world->num_monsters++;
 }
@@ -604,17 +604,6 @@ int entry(int argc, char **argv) {
 		}
 	}
 	
-    Action* attack_act = action_create();
-    setup_action_attack(attack_act);
-    Action* fire_act = action_create();
-    setup_action_fire(fire_act);
-    Action* defend_act = action_create();
-    setup_action_defend(defend_act);
-    Action* cure_act = action_create();
-    setup_action_cure(cure_act);
-    Action* potion_act = action_create();
-    setup_action_potion(potion_act);
-
     Entity* cursor_en = entity_create();
     setup_cursor(cursor_en);
         
@@ -641,15 +630,15 @@ int entry(int argc, char **argv) {
 
     Entity* attack_menu_en = entity_create();
     setup_text(attack_menu_en, STR("Attack"));
-    attack_menu_en->pos = v2(2.0f * tile_width, y_pos - (font_height + font_padding) * 0.1); 
+    attack_menu_en->pos = v2(1.0f * tile_width, y_pos - (font_height + font_padding) * 0.1); 
 
     Entity* magic_menu_en = entity_create();
     setup_text(magic_menu_en, STR("Magic"));
-    magic_menu_en->pos = v2(2.0f * tile_width, y_pos - (font_height + font_padding) * 0.1 * 2); 
+    magic_menu_en->pos = v2(1.0f * tile_width, y_pos - (font_height + font_padding) * 0.1 * 2); 
     
     Entity* item_menu_en = entity_create();
     setup_text(item_menu_en, STR("Items"));
-    item_menu_en->pos = v2(2.0f * tile_width, y_pos - (font_height + font_padding) * 0.1 * 3); 
+    item_menu_en->pos = v2(1.0f * tile_width, y_pos - (font_height + font_padding) * 0.1 * 3); 
    
     Entity* fps_count_en = entity_create();
     setup_text(fps_count_en, STR("fps: 0.0"));
@@ -711,7 +700,7 @@ int entry(int argc, char **argv) {
                             push_z_layer(layer_cursor);
                             if (world->ux_state == UX_command){
 		                        set_screen_space();
-                                en->pos = v2(tile_width * 1.5, y_pos - (tile_width * 0.25f) - (font_height + font_padding) * world->ux_cmd_pos * 0.1);
+                                en->pos = v2(tile_width * 0.5, y_pos - (tile_width * 0.25f) - (font_height + font_padding) * world->ux_cmd_pos * 0.1);
                             }
                             else if(world->ux_state == UX_attack){
 		                        set_world_space();
@@ -786,7 +775,7 @@ int entry(int argc, char **argv) {
                                 s32 target_player = 0;
                                 select_random_player(false, &target_player);
                                 en->time.current = 0;
-                                apply_damage_to_entity(en, &world->entities[target_player], attack_act); 
+                                //apply_damage_to_entity(en, &world->entities[target_player], attack_act); 
                             }
                             render_sprite_entity(en);
                             break;
@@ -840,6 +829,21 @@ int entry(int argc, char **argv) {
             attack_menu_en->color.a = (world->ux_state != UX_default)?1.0:0.1;
             magic_menu_en->color.a = (world->ux_state != UX_default)?1.0:0.1;
             item_menu_en->color.a = (world->ux_state != UX_default)?1.0:0.1;
+            
+            if(world->ux_state == UX_magic){
+                Entity* selected_player = &world->entities[world->player_selected];
+                set_screen_space();
+                push_z_layer(layer_text);
+                Matrix4 xform = m4_scalar(1.0);
+                xform = m4_translate(xform, v3(3.0f * tile_width, y_pos - (font_height + font_padding) * 0.1, 0.0)); 
+                for(int i = 0; i< MAX_ACTION_COUNT; i++){
+                    Action* action = &selected_player->actions[i];
+                    if(action->is_valid && action->arch == ACT_magic){
+                        draw_text_xform(world->font, action->name, font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
+                        xform = m4_translate(xform, v3(0, -(font_height + font_padding) *0.1, 0));
+                    } 
+                }
+            }
         }
 
         //:input
@@ -905,8 +909,8 @@ int entry(int argc, char **argv) {
                     consume_key_just_pressed(KEY_ENTER);
                     Entity* selected_en = &world->entities[world->entity_selected];
                     Entity* selected_player = &world->entities[world->player_selected];
-                    apply_damage_to_entity(selected_player, selected_en, attack_act); 
-                    selected_player->time.current -= attack_act->cost_time;
+                    //apply_damage_to_entity(selected_player, selected_en, attack_act); 
+                    //selected_player->time.current -= attack_act->cost_time;
                     world->ux_state = UX_default;
                     world->ux_cmd_pos = CMD_attack;
                 }
