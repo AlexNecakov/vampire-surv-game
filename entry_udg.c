@@ -10,6 +10,8 @@ const float32 font_padding = (float32)font_height/10.0f;
 const float32 spriteSheetWidth = 240.0;
 const s32 tile_width = 16;
 
+const s32 layer_stage_bg = 0;
+const s32 layer_stage_fg = 5;
 const s32 layer_world = 10;
 const s32 layer_entity = 20;
 const s32 layer_ui_bg = 30;
@@ -158,6 +160,8 @@ typedef enum SpriteID {
     SPRITE_target,
     SPRITE_monster,
     SPRITE_attack,
+    SPRITE_foreground,
+    SPRITE_background,
     SPRITE_MAX,
 } SpriteID;
 Sprite sprites[SPRITE_MAX];
@@ -581,7 +585,7 @@ int entry(int argc, char **argv) {
 	window.clear_color = hex_to_rgba(0x1e1e1eff);
     float32 aspectRatio = (float32)window.width/(float32)window.height; 
     float32 zoom = window.width/spriteSheetWidth;
-    float y_pos = screen_height/3.0f;
+    float y_pos = (screen_height/3.0f) - 9.0f;
     
     world = alloc(get_heap_allocator(), sizeof(World));
     memset(world, 0, sizeof(World));
@@ -599,6 +603,8 @@ int entry(int argc, char **argv) {
     sprites[SPRITE_cursor] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\cursor.png"), get_heap_allocator()) };
     sprites[SPRITE_target] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\target.png"), get_heap_allocator()) };
     sprites[SPRITE_attack] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\attack.png"), get_heap_allocator()) };
+    sprites[SPRITE_foreground] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\foreground.png"), get_heap_allocator()) };
+    sprites[SPRITE_background] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\background.png"), get_heap_allocator()) };
 	
     // @ship debug this off
 	{
@@ -618,7 +624,7 @@ int entry(int argc, char **argv) {
 		Entity* en = entity_create();
 		setup_player(en);
         en->name = sprint(temp_allocator, STR("player%i"), i);
-		en->pos = v2(tile_width * i + 4 * tile_width, tile_width*-i + 3 * tile_width);
+		en->pos = v2(tile_width * i + 4 * tile_width, tile_width*-i + tile_width);
 		en->pos = round_v2_to_tile(en->pos);
         en->time.current = get_random_float32_in_range(en->time.max * 0.1, en->time.max * 0.7);
 	}
@@ -626,7 +632,7 @@ int entry(int argc, char **argv) {
     for (int i = 0; i < 4; i++) {
         Entity* en = entity_create();
         setup_monster(en);
-        en->pos = v2(-2 * i * tile_width, -i * tile_width + 3 * tile_width);
+        en->pos = v2(-2 * i * tile_width, -i * tile_width + tile_width);
         en->pos = round_v2_to_tile(en->pos);
         en->name = sprint(temp_allocator, STR("monster%i"), i);
     }
@@ -684,7 +690,7 @@ int entry(int argc, char **argv) {
 			for (int x = player_tile_x - tile_radius_x; x < player_tile_x + tile_radius_x; x++) {
 				for (int y = player_tile_y - tile_radius_y; y < player_tile_y + tile_radius_y; y++) {
 					if ((x + (y % 2 == 0) ) % 2 == 0) {
-						Vector4 col = v4(0.6, 0.6, 0.6, 0.6);
+						Vector4 col = v4(0.6, 0.6, 0.6, 0.1);
 						float x_pos = x * tile_width;
 						float tile_y_pos = y * tile_width;
 						draw_rect(v2(x_pos + tile_width * -0.5, tile_y_pos + tile_width * -0.5), v2(tile_width, tile_width), col);
@@ -744,7 +750,7 @@ int entry(int argc, char **argv) {
                                 //Sprite* sprite = get_sprite(en->sprite_id);
                                 Matrix4 xform = m4_scalar(1.0);
                                 //xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
-                                xform = m4_translate(xform, v3(7.5f * tile_width, y_pos - (font_height + font_padding) * 0.1 * i, 0)); 
+                                xform = m4_translate(xform, v3(7.5f * tile_width, y_pos - (font_height + font_padding) * 0.1 * (i-1), 0)); 
                                 draw_text_xform(world->font, en->name, font_height, xform, v2(0.1, 0.1), (world->player_selected==i)?COLOR_YELLOW:COLOR_WHITE);
                                 xform = m4_translate(xform, v3(25, 0, 0));
                                 draw_rect_xform(xform, v2(25, 0.5), COLOR_GREY);
@@ -828,15 +834,33 @@ int entry(int argc, char **argv) {
         //:ui loop 
         {
             set_screen_space();
-            push_z_layer(layer_ui_bg);
+
+            {
+                push_z_layer(layer_stage_bg);
+                Sprite* sprite = &(sprites[SPRITE_background]);
+                Matrix4 xform = m4_scalar(1.0);
+                draw_image_xform(sprite->image, xform, get_sprite_size(sprite), COLOR_WHITE);
+                pop_z_layer();
+            }
+            
+            {
+                push_z_layer(layer_stage_fg);
+                Sprite* sprite = &(sprites[SPRITE_foreground]);
+                Matrix4 xform = m4_scalar(1.0);
+                draw_image_xform(sprite->image, xform, get_sprite_size(sprite), COLOR_WHITE);
+                pop_z_layer();
+            }
+
+
             // bg box
             {
+                push_z_layer(layer_ui_bg);
                 Matrix4 xform = m4_scalar(1.0);
                 xform = m4_translate(xform, v3(0, y_pos, 0.0));
                 draw_rect_xform(xform, v2(screen_width, -y_pos), bg_box_col);
+                pop_z_layer();
             }
 
-            pop_z_layer();
             attack_menu_en->color = (world->ux_cmd_pos == CMD_attack)?COLOR_YELLOW:COLOR_WHITE;
             magic_menu_en->color = (world->ux_cmd_pos == CMD_magic)?COLOR_YELLOW:COLOR_WHITE;
             item_menu_en->color = (world->ux_cmd_pos == CMD_items)?COLOR_YELLOW:COLOR_WHITE;
