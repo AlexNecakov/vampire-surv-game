@@ -744,12 +744,16 @@ int entry(int argc, char **argv) {
                                 //Sprite* sprite = get_sprite(en->sprite_id);
                                 Matrix4 xform = m4_scalar(1.0);
                                 //xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
-                                xform = m4_translate(xform, v3(9.5f * tile_width, y_pos - (font_height + font_padding) * 0.1 * i, 0)); 
+                                xform = m4_translate(xform, v3(7.5f * tile_width, y_pos - (font_height + font_padding) * 0.1 * i, 0)); 
                                 draw_text_xform(world->font, en->name, font_height, xform, v2(0.1, 0.1), (world->player_selected==i)?COLOR_YELLOW:COLOR_WHITE);
                                 xform = m4_translate(xform, v3(25, 0, 0));
-                                draw_rect_xform(xform, v2(25, 0.5), COLOR_RED);
-                                draw_rect_xform(xform, v2((en->health.current / en->health.max) * 25.0f, 0.5), COLOR_GREEN);
+                                draw_rect_xform(xform, v2(25, 0.5), COLOR_GREY);
+                                draw_rect_xform(xform, v2((en->health.current / en->health.max) * 25.0f, 0.5), COLOR_RED);
                                 draw_text_xform(world->font, sprint(temp_allocator, STR("%.0f/%.0f"), en->health.current, en->health.max), font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
+                                xform = m4_translate(xform, v3(30, 0, 0));
+                                draw_rect_xform(xform, v2(25, 0.5), COLOR_GREY);
+                                draw_rect_xform(xform, v2((en->mana.current / en->mana.max) * 25.0f, 0.5), COLOR_GREEN);
+                                draw_text_xform(world->font, sprint(temp_allocator, STR("%.0f/%.0f"), en->mana.current, en->mana.max), font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
                                 xform = m4_translate(xform, v3(30, 0, 0));
                                 draw_rect_xform(xform, v2(25, 2.5), COLOR_GREY);
                                 draw_rect_xform(xform, v2((en->time.current / en->time.max) * 25.0f, 2.5), COLOR_YELLOW);
@@ -935,6 +939,8 @@ int entry(int argc, char **argv) {
                     Entity* selected_player = &world->entities[world->player_selected];
                     apply_damage_to_entity(selected_player, selected_en, &(selected_player->actions[world->action_selected])); 
                     selected_player->time.current -= selected_player->actions[world->action_selected].cost_time;
+                    selected_player->mana.current -= selected_player->actions[world->action_selected].cost_mana;
+                    selected_player->health.current -= selected_player->actions[world->action_selected].cost_health;
                     world->ux_state_prev = world->ux_state;
                     world->ux_state = UX_default;
                     world->ux_cmd_pos = CMD_attack;
@@ -962,17 +968,19 @@ int entry(int argc, char **argv) {
                         Action* action = &selected_player->actions[i];
                         if(action->is_valid && action->arch == ACT_magic){
                             if(localCount >= world->ux_list_pos){
-                                world->action_selected = i;
-                                break;
+                                if(selected_player->mana.current >= action->cost_mana){
+                                    world->action_selected = i;
+                                    select_first_entity_by_arch(ARCH_monster, false, &world->entity_selected);
+                                    world->ux_state_prev = world->ux_state;
+                                    world->ux_state = UX_target;
+                                    break;
+                                }
                             }
                             else{
                                 localCount++;
                             }
                         } 
                     }
-                    select_first_entity_by_arch(ARCH_monster, false, &world->entity_selected);
-                    world->ux_state_prev = world->ux_state;
-                    world->ux_state = UX_target;
                 }
                 else if (is_key_just_pressed(KEY_TAB)){
                     consume_key_just_pressed(KEY_TAB);
