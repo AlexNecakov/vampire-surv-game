@@ -24,10 +24,6 @@ Vector4 bg_box_col = {0, 0, 1.0, 0.9};
 float screen_width = 240.0;
 float screen_height = 135.0;
 
-float64 player_hp_max = 50;
-float64 player_mp_max = 25;
-float64 player_tp_max = 100;
-float64 player_tp_rate = 25;
 float64 monster_hp_max = 50;
 float64 monster_mp_max = 15;
 float64 monster_tp_max = 100;
@@ -156,6 +152,10 @@ typedef struct Sprite {
 typedef enum SpriteID {
     SPRITE_nil,
     SPRITE_player,
+    SPRITE_fighter,
+    SPRITE_mage,
+    SPRITE_thief,
+    SPRITE_cleric,
     SPRITE_cursor,
     SPRITE_target,
     SPRITE_monster,
@@ -497,30 +497,95 @@ void render_sprite_entity(Entity* en){
 
 void setup_player(Entity* en) {
     en->arch = ARCH_player;
-    en->sprite_id = SPRITE_player;
-    en->health.max = player_hp_max;
+    world->num_players++;
+}
+
+void setup_fighter(Entity* en) {
+    en->sprite_id = SPRITE_fighter;
+    en->health.max = 80;
     en->health.current = en->health.max;
-    en->mana.max = player_mp_max;
+    en->mana.max = 5;
     en->mana.current = en->mana.max;
-    en->time.max = player_tp_max;
+    en->time.max = 100;
     en->time.current = 0;
-    en->time.rate = player_tp_rate;
-    en->stat_block[ABI_str] = 25;
+    en->time.rate = 25;
+    en->stat_block[ABI_str] = 45;
     en->stat_block[ABI_con] = 10;
     en->color = COLOR_WHITE;
-    world->num_players++;
+    en->name = STR("Fighter");
 
     Action* attack_act = action_create(en);
     setup_action_attack(attack_act);
+    Action* defend_act = action_create(en);
+    setup_action_defend(defend_act);
+
+    setup_player(en);
+}
+
+void setup_mage(Entity* en) {
+    en->sprite_id = SPRITE_mage;
+    en->health.max = 30;
+    en->health.current = en->health.max;
+    en->mana.max = 50;
+    en->mana.current = en->mana.max;
+    en->time.max = 100;
+    en->time.current = 0;
+    en->time.rate = 25;
+    en->stat_block[ABI_int] = 45;
+    en->stat_block[ABI_con] = 10;
+    en->color = COLOR_WHITE;
+    en->name = STR("Mage");
+
     Action* fire_act = action_create(en);
     setup_action_fire(fire_act);
     Action* defend_act = action_create(en);
     setup_action_defend(defend_act);
+
+    setup_player(en);
+}
+
+void setup_thief(Entity* en) {
+    en->sprite_id = SPRITE_thief;
+    en->health.max = 40;
+    en->health.current = en->health.max;
+    en->mana.max = 5;
+    en->mana.current = en->mana.max;
+    en->time.max = 100;
+    en->time.current = 0;
+    en->time.rate = 75;
+    en->stat_block[ABI_str] = 15;
+    en->stat_block[ABI_con] = 10;
+    en->color = COLOR_WHITE;
+    en->name = STR("Thief");
+
+    Action* attack_act = action_create(en);
+    setup_action_attack(attack_act);
+    Action* defend_act = action_create(en);
+    setup_action_defend(defend_act);
+
+    setup_player(en);
+}
+
+void setup_cleric(Entity* en) {
+    en->sprite_id = SPRITE_cleric;
+    en->health.max = 40;
+    en->health.current = en->health.max;
+    en->mana.max = 30;
+    en->mana.current = en->mana.max;
+    en->time.max = 100;
+    en->time.current = 0;
+    en->time.rate = 25;
+    en->stat_block[ABI_int] = 20;
+    en->stat_block[ABI_con] = 10;
+    en->color = COLOR_WHITE;
+    en->name = STR("Cleric");
+
     Action* cure_act = action_create(en);
     setup_action_cure(cure_act);
-    Action* potion_act = action_create(en);
-    setup_action_potion(potion_act);
+    Action* defend_act = action_create(en);
+    setup_action_defend(defend_act);
 
+    setup_player(en);
 }
 
 void setup_cursor(Entity* en) {
@@ -599,6 +664,10 @@ int entry(int argc, char **argv) {
 
     sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\undefined.png"), get_heap_allocator()) };
     sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\mannequin.png"), get_heap_allocator()) };
+    sprites[SPRITE_fighter] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\Fighter.png"), get_heap_allocator()) };
+    sprites[SPRITE_mage] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\Mage.png"), get_heap_allocator()) };
+    sprites[SPRITE_thief] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\Thief.png"), get_heap_allocator()) };
+    sprites[SPRITE_cleric] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\Cleric.png"), get_heap_allocator()) };
     sprites[SPRITE_monster] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\metroid.png"), get_heap_allocator()) };
     sprites[SPRITE_cursor] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\cursor.png"), get_heap_allocator()) };
     sprites[SPRITE_target] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\target.png"), get_heap_allocator()) };
@@ -622,8 +691,7 @@ int entry(int argc, char **argv) {
 
     for (int i = 0; i < 4; i++) {
 		Entity* en = entity_create();
-		setup_player(en);
-        en->name = sprint(temp_allocator, STR("player%i"), i);
+		setup_cleric(en);
 		en->pos = v2(tile_width * i + 4 * tile_width, tile_width*-i + tile_width);
 		en->pos = round_v2_to_tile(en->pos);
         en->time.current = get_random_float32_in_range(en->time.max * 0.1, en->time.max * 0.7);
