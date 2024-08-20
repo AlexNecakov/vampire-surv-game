@@ -709,7 +709,7 @@ int entry(int argc, char **argv) {
 
     for (int i = 0; i < 4; i++) {
 		Entity* en = entity_create();
-		setup_cleric(en);
+		setup_fighter(en);
 		en->current_pos = v2(tile_width * i + 4 * tile_width, tile_width*-i + tile_width);
 		en->current_pos = round_v2_to_tile(en->current_pos);
 		en->standing_pos = en->current_pos;
@@ -859,6 +859,9 @@ int entry(int argc, char **argv) {
                             push_z_layer(layer_world);
 			                
                             animate_v2_to_target(&(en->current_pos), en->target_pos, delta, 30.0f);
+                            if(v2_dist(en->target_pos, en->current_pos) == 0){
+                                en->target_pos = en->standing_pos;
+                            }
                             
                             if(en->time.current >= en->time.max){
                                 if(world->ux_state == UX_default){
