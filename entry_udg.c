@@ -50,12 +50,12 @@ typedef struct WorldFrame {
 WorldFrame world_frame;
 
 void set_screen_space() {
-	draw_frame.view = m4_scalar(1.0);
+	draw_frame.camera_xform = m4_scalar(1.0);
 	draw_frame.projection = m4_make_orthographic_projection(0.0, screen_width, 0.0, screen_height, -1, 10);
 }
 void set_world_space() {
 	draw_frame.projection = world_frame.world_proj;
-	draw_frame.view = world_frame.world_view;
+	draw_frame.camera_xform = world_frame.world_view;
 }
 
 Vector2 world_to_screen(Vector2 world_pos){
@@ -64,7 +64,7 @@ Vector2 world_to_screen(Vector2 world_pos){
 }
 Vector2 screen_to_world(Vector2 screen_pos) {
 	Matrix4 proj = draw_frame.projection;
-	Matrix4 view = draw_frame.view;
+	Matrix4 view = draw_frame.camera_xform;
 	float window_w = window.width;
 	float window_h = window.height;
 
@@ -100,7 +100,7 @@ Vector2 get_mouse_pos_in_ndc() {
 	float mouse_x = input_frame.mouse_x;
 	float mouse_y = input_frame.mouse_y;
 	Matrix4 proj = draw_frame.projection;
-	Matrix4 view = draw_frame.view;
+	Matrix4 view = draw_frame.camera_xform;
 	float window_w = window.width;
 	float window_h = window.height;
 
@@ -114,7 +114,7 @@ Vector2 get_mouse_pos_in_ndc() {
 Draw_Quad ndc_quad_to_screen_quad(Draw_Quad ndc_quad) {
 	// NOTE: we're assuming these are the screen space matricies.
 	Matrix4 proj = draw_frame.projection;
-	Matrix4 view = draw_frame.view;
+	Matrix4 view = draw_frame.camera_xform;
 
 	Matrix4 ndc_to_screen_space = m4_scalar(1.0);
 	ndc_to_screen_space = m4_mul(ndc_to_screen_space, m4_inverse(proj));
@@ -725,13 +725,13 @@ int entry(int argc, char **argv) {
     float64 seconds_counter = 0.0;
     s32 frame_count = 0;
     s32 last_fps = 0;
-    float64 last_time = os_get_current_time_in_seconds();
+    float64 last_time = os_get_elapsed_seconds();
 
     //:loop
     while (!window.should_close) {
 		reset_temporary_storage();
 		world_frame = (WorldFrame){0};
-        float64 now = os_get_current_time_in_seconds();
+        float64 now = os_get_elapsed_seconds();
 		float64 delta = now - last_time;
 		last_time = now;	
         os_update(); 
