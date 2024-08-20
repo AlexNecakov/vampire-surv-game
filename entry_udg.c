@@ -252,7 +252,6 @@ typedef struct Action {
     float64 cost_health;
     //animation
     //special script
-    void script;
 } Action;
 
 void setup_action_attack(Action* act) {
@@ -328,6 +327,7 @@ typedef struct Entity{
     SpriteID sprite_id;
     bool render_sprite;
     Vector2 current_pos;
+    Vector2 target_pos;
     Vector2 standing_pos;
     Vector4 color;
     Bar health;
@@ -713,6 +713,7 @@ int entry(int argc, char **argv) {
 		en->current_pos = v2(tile_width * i + 4 * tile_width, tile_width*-i + tile_width);
 		en->current_pos = round_v2_to_tile(en->current_pos);
 		en->standing_pos = en->current_pos;
+		en->target_pos = en->standing_pos;
         en->time.current = get_random_float32_in_range(en->time.max * 0.1, en->time.max * 0.7);
 	}
 
@@ -722,6 +723,7 @@ int entry(int argc, char **argv) {
         en->current_pos = v2(-2 * i * tile_width, -i * tile_width + tile_width);
         en->current_pos = round_v2_to_tile(en->current_pos);
 		en->standing_pos = en->current_pos;
+		en->target_pos = en->standing_pos;
         en->name = sprint(temp_allocator, STR("monster%i"), i);
     }
 
@@ -855,6 +857,9 @@ int entry(int argc, char **argv) {
                             }
 		                    set_world_space();
                             push_z_layer(layer_world);
+			                
+                            animate_v2_to_target(&(en->current_pos), en->target_pos, delta, 30.0f);
+                            
                             if(en->time.current >= en->time.max){
                                 if(world->ux_state == UX_default){
                                     world->ux_state_prev = world->ux_state;
@@ -1053,6 +1058,7 @@ int entry(int argc, char **argv) {
                     selected_player->time.current -= selected_player->actions[world->action_selected].cost_time;
                     selected_player->mana.current -= selected_player->actions[world->action_selected].cost_mana;
                     selected_player->health.current -= selected_player->actions[world->action_selected].cost_health;
+                    selected_player->target_pos = v2(selected_player->target_pos.x - tile_width, selected_player->target_pos.y);
                     world->ux_state_prev = world->ux_state;
                     world->ux_state = UX_default;
                     world->ux_cmd_pos = CMD_attack;
