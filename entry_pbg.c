@@ -321,7 +321,7 @@ int entry(int argc, char **argv) {
         for (int i = 0; i < 1; i++) {
             Entity* en = entity_create();
             setup_citizen(en);
-            en->pos = v2(-2 * i * tile_width, -i * tile_width + 2 * tile_width);
+            en->pos = v2(-2 * i * tile_width - tile_width, -i * tile_width + 2 * tile_width);
             en->pos = round_v2_to_tile(en->pos);
         }
     }
@@ -443,29 +443,30 @@ int entry(int argc, char **argv) {
                                         }
                                         float rads = ((float)i)*((float)RAD_PER_DEG);
                                         point = v2_rotate_point_around_pivot(point, en->pos, to_radians((float)i + en->view_direction)); 
-                                        draw_line(en->pos, point, 10, v4(0.5, 0.5, 0, 1));
+                                        draw_line(en->pos, point, 1, v4(0.5, 0.5, 0, 1));
                                     }
                                 }
-                                //player pos en pos. check facing direction. check dist
                                 bool detected = false;
-                                Vector2 facing_vec = v2_add(en->pos, v2(en->view_dist, 0));  
+                                Vector2 facing_vec = v2(en->view_dist, 0);  
                                 facing_vec = v2_rotate_point_around_pivot(facing_vec, en->pos, to_radians(en->view_direction));
-                                draw_line(en->pos, facing_vec, 1, v4(0, 1.0, 0, 1));
+                                draw_line(en->pos, v2_add(en->pos, facing_vec), 1, v4(0, 1.0, 0, 1));
                                 Vector2 player_vec = v2_sub(get_player()->pos, en->pos);
-                                draw_line(en->pos, player_vec, 1, v4(1.0, 0, 0, 1));
-                                double angle = to_degrees(acos((v2_dot(player_vec, facing_vec) / v2_dot(v2_abs(player_vec), v2_abs(facing_vec))))); 
-                                log("%f", angle);
-                                if( angle <= 1 && angle >= -1){
+                                draw_line(en->pos, v2_add(en->pos, player_vec), 1, v4(1.0, 0, 0, 1));
+                                
+                                float uDotV = v2_dot(player_vec, facing_vec);
+                                float mag = v2_length(player_vec) * v2_length(facing_vec);
+                                float angle = to_degrees(acos(uDotV / mag)); 
+                                if( angle <= 1){
                                     detected = (v2_length(player_vec) <= (3 * en->view_dist))?true:false;
                                 }
-                                else if( angle <= en->view_angle && angle >= -en->view_angle){
+                                else if( angle <= en->view_angle){
                                     detected = (v2_length(player_vec) <= (en->view_dist))?true:false;
                                 }
                                 else{
                                     detected = false;
                                 }
                                 if(detected){
-                                    //world->ux_state = UX_lose;
+                                    world->ux_state = UX_lose;
                                 }
                                 pop_z_layer();
                             }
