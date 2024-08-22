@@ -68,7 +68,9 @@ Vector2 get_sprite_size(Sprite* sprite) {
 typedef enum UXState {
 	UX_nil,
 	UX_default,
-	UX_debug,
+    UX_changing,
+    UX_win,
+    UX_lose,
 } UXState;
 
 //:bar
@@ -83,13 +85,15 @@ typedef enum EntityArchetype{
     ARCH_nil = 0,
     ARCH_player,
     ARCH_citizen,
-    ARCH_text,
+    ARCH_terrain,
     ARCH_MAX,
 } EntityArchetype;
 
 typedef enum EntityState{
     ENT_nil = 0,
     ENT_standing,
+    ENT_roaming,
+    ENT_searching,
     ENT_attacking,
 } EntityState;
 
@@ -106,6 +110,7 @@ typedef struct Entity{
 typedef struct World{
 	Entity entities[MAX_ENTITY_COUNT];
 	UXState ux_state;
+    Bar changing;
     bool debug_render;
     Gfx_Font* font;
 } World;
@@ -115,7 +120,6 @@ typedef struct WorldFrame {
 	Entity* selected_entity;
 	Matrix4 world_proj;
 	Matrix4 world_view;
-	bool hover_consumed;
 	Entity* player;
 	// :frame state
 } WorldFrame;
@@ -282,6 +286,8 @@ int entry(int argc, char **argv) {
     world = alloc(get_heap_allocator(), sizeof(World));
     memset(world, 0, sizeof(World));
     world->ux_state = UX_default;
+    world->changing.max = 100;
+    world->changing.current = 0;
     world->debug_render = true;
     world->font = load_font_from_disk(STR("C:/windows/fonts/arial.ttf"), get_heap_allocator());
 	assert(world->font, "Failed loading arial.ttf, %d", GetLastError());	
@@ -330,18 +336,18 @@ int entry(int argc, char **argv) {
         draw_frame.enable_z_sorting = true;
 		world_frame.world_proj = m4_make_orthographic_projection(window.width * -0.5, window.width * 0.5, window.height * -0.5, window.height * 0.5, -1, 10);
 
+        //:camera
+		{
+			world_frame.world_view = m4_make_scale(v3(1.0, 1.0, 1.0));
+			world_frame.world_view = m4_mul(world_frame.world_view, m4_make_scale(v3(1.0/zoom, 1.0/zoom, 1.0)));
+		}
+
 		// find player 
 		for (int i = 0; i < MAX_ENTITY_COUNT; i++) {
 			Entity* en = &world->entities[i];
 			if (en->is_valid && en->arch == ARCH_player) {
 				world_frame.player = en;
 			}
-		}
-
-        //:camera
-		{
-			world_frame.world_view = m4_make_scale(v3(1.0, 1.0, 1.0));
-			world_frame.world_view = m4_mul(world_frame.world_view, m4_make_scale(v3(1.0/zoom, 1.0/zoom, 1.0)));
 		}
         
         //:input
@@ -352,47 +358,38 @@ int entry(int argc, char **argv) {
             }
              
             Vector2 input_axis = v2(0, 0);
-            if (is_key_down('A')) {
-                input_axis.x -= 1.0;
+            if(world->ux_state == UX_default){
+                if (is_key_down('A')) {
+                    input_axis.x -= 1.0;
+                }
+                if (is_key_down('D')) {
+                    input_axis.x += 1.0;
+                }
+                if (is_key_down('S')) {
+                    input_axis.y -= 1.0;
+                }
+                if (is_key_down('W')) {
+                    input_axis.y += 1.0;
+                }
             }
-            if (is_key_down('D')) {
-                input_axis.x += 1.0;
+            if(is_key_down(KEY_SPACEBAR)){
+                world->ux_state = UX_changing;
+                world->changing.rate = 35;
             }
-            if (is_key_down('S')) {
-                input_axis.y -= 1.0;
+            else{
+                world->changing.rate = -45;
             }
-            if (is_key_down('W')) {
-                input_axis.y += 1.0;
-            }
+
             input_axis = v2_normalize(input_axis);
 
             get_player()->pos = v2_add(get_player()->pos, v2_mulf(input_axis, 100.0 * delta_t));
 
         }
-
-
-        //:tile rendering
-		{
-		    set_world_space();
-		    push_z_layer(layer_world);
-
-			int player_tile_x = world_pos_to_tile_pos(get_player()->pos.x);
-			int player_tile_y = world_pos_to_tile_pos(get_player()->pos.y);
-			int tile_radius_x = 40;
-			int tile_radius_y = 30;
-			for (int x = player_tile_x - tile_radius_x; x < player_tile_x + tile_radius_x; x++) {
-				for (int y = player_tile_y - tile_radius_y; y < player_tile_y + tile_radius_y; y++) {
-					if ((x + (y % 2 == 0) ) % 2 == 0) {
-						Vector4 col = v4(0.1, 0.1, 0.1, 0.1);
-						float x_pos = x * tile_width;
-						float y_pos = y * tile_width;
-						//draw_rect(v2(x_pos + tile_width * -0.5, y_pos + tile_width * -0.5), v2(tile_width, tile_width), col);
-					}
-				}
-			}
-
-            pop_z_layer();
-		}
+        world->changing.current = (world->changing.current + (world->changing.rate * delta_t) >= world->changing.max)? world->changing.max: world->changing.current + (world->changing.rate * delta_t);
+        if(world->changing.current <= 0){
+            world->changing.current = 0;
+            world->ux_state = UX_default;
+        }
 
         //:entity loop 
         {
@@ -410,6 +407,40 @@ int entry(int argc, char **argv) {
                 }
                    
             }
+        }
+
+        //:tile rendering
+		{
+		    set_world_space();
+		    push_z_layer(layer_stage_fg);
+
+			int player_tile_x = world_pos_to_tile_pos(get_player()->pos.x);
+			int player_tile_y = world_pos_to_tile_pos(get_player()->pos.y);
+			int tile_radius_x = 40;
+			int tile_radius_y = 30;
+			for (int x = player_tile_x - tile_radius_x; x < player_tile_x + tile_radius_x; x++) {
+				for (int y = player_tile_y - tile_radius_y; y < player_tile_y + tile_radius_y; y++) {
+					if ((x + (y % 2 == 0) ) % 2 == 0) {
+						Vector4 col = v4(0.1, 0.1, 0.1, 0.1);
+						float x_pos = x * tile_width;
+						float y_pos = y * tile_width;
+						draw_rect(v2(x_pos + tile_width * -0.5, y_pos + tile_width * -0.5), v2(tile_width, tile_width), col);
+					}
+				}
+			}
+
+            pop_z_layer();
+		}
+
+        //:ui
+        if(world->ux_state == UX_changing){
+            Sprite* sprite = get_sprite(get_player()->sprite_id);
+            Matrix4 xform = m4_scalar(1.0);
+            xform = m4_translate(xform, v3(get_player()->pos.x, get_player()->pos.y, 0));
+
+            xform = m4_translate(xform, v3(-0.5 * get_sprite_size(sprite).x, -.6 * get_sprite_size(sprite).y, 0));
+            draw_rect_xform(xform, v2(world->changing.max * 0.1, 2.5), COLOR_RED);
+            draw_rect_xform(xform, v2(world->changing.current * 0.1, 2.5), COLOR_GREEN);
         }
 
         //:fps
