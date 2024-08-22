@@ -1,4 +1,4 @@
-//:constants
+//constants
 #define MAX_ENTITY_COUNT 1024
 
 const u32 font_height = 64;
@@ -12,6 +12,7 @@ const s32 layer_stage_fg = 5;
 const s32 layer_world = 10;
 const s32 layer_entity = 20;
 const s32 layer_costume = 25;
+const s32 layer_view = 15;
 const s32 layer_ui_bg = 30;
 const s32 layer_ui_fg = 35;
 const s32 layer_text = 40;
@@ -105,6 +106,9 @@ typedef struct Entity{
     SpriteID sprite_id;
     SpriteID sprite_costume_id;
     Vector2 pos;
+    float view_direction;
+    float view_angle;
+    float view_dist;
     Vector4 color;
 } Entity;
 
@@ -162,6 +166,9 @@ void setup_citizen(Entity* en) {
     en->sprite_id = SPRITE_citizen;
     en->state = ENT_standing;
     en->color = COLOR_WHITE;
+    en->view_direction = 0;
+    en->view_dist = 60;
+    en->view_angle = 45;
 }
 
 void render_sprite_entity(Entity* en){
@@ -313,7 +320,7 @@ int entry(int argc, char **argv) {
         Entity* player_en = entity_create();
         setup_player(player_en);
 
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 1; i++) {
             Entity* en = entity_create();
             setup_citizen(en);
             en->pos = v2(-2 * i * tile_width, -i * tile_width + tile_width);
@@ -421,6 +428,22 @@ int entry(int argc, char **argv) {
                             draw_image_xform(costume->image, xform, v2(get_sprite_size(costume).x, get_sprite_size(costume).y * (world->changing.current / world->changing.max)), en->color);
 
                             break;
+                        case ARCH_citizen:
+                            set_world_space();
+                            push_z_layer(layer_entity);
+                            render_sprite_entity(en);
+                            
+                            push_z_layer(layer_view);
+                            for( int i = -en->view_angle; i < en->view_angle; i++){
+                                Vector2 point = en->pos;
+                                point = v2_add(point, v2(en->view_dist, 0));
+                                if( i <= 3 && i >= -3){
+                                    point = v2_add(point, v2(2*en->view_dist, 0));
+                                }
+                                float rads = ((float)i)*((float)RAD_PER_DEG);
+                                point = v2_rotate_point_around_pivot(point, en->pos, rads); 
+                                draw_line(en->pos, point, 10, v4(0.5, 0.5, 0, 1));
+                            }
                         default:
 		                    set_world_space();
                             push_z_layer(layer_entity);
