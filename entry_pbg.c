@@ -420,7 +420,6 @@ int entry(int argc, char **argv) {
                             Sprite* costume = get_sprite(en->sprite_costume_id);
                             Sprite* sprite = get_sprite(en->sprite_id);
                             Matrix4 xform = m4_scalar(1.0);
-                            xform         = m4_translate(xform, v3(0, tile_width * -0.5, 0));
                             xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
                             xform         = m4_translate(xform, v3(get_sprite_size(sprite).x * -1 - 0.5, 0.0, 0));
                             draw_image_xform(costume->image, xform, v2(get_sprite_size(costume).x, get_sprite_size(costume).y * (world->changing.current / world->changing.max)), en->color);
@@ -431,28 +430,13 @@ int entry(int argc, char **argv) {
                             push_z_layer(layer_entity);
                             render_sprite_entity(en);
                             
-                            //line of sight
+                            //:detection
                             { 
-                                push_z_layer(layer_view);
-                                if(world->debug_render){
-                                    for( int i = -en->view_angle; i < en->view_angle; i++){
-                                        Vector2 point = en->pos;
-                                        point = v2_add(point, v2(en->view_dist, 0));
-                                        if( i <= 1 && i >= -1){
-                                            point = v2_add(point, v2(2*en->view_dist, 0));
-                                        }
-                                        float rads = ((float)i)*((float)RAD_PER_DEG);
-                                        point = v2_rotate_point_around_pivot(point, en->pos, to_radians((float)i + en->view_direction)); 
-                                        draw_line(en->pos, point, 1, v4(0.5, 0.5, 0, 1));
-                                    }
-                                }
-                                bool detected = false;
                                 Vector2 facing_vec = v2(en->view_dist, 0);  
                                 facing_vec = v2_rotate_point_around_pivot(facing_vec, en->pos, to_radians(en->view_direction));
-                                draw_line(en->pos, v2_add(en->pos, facing_vec), 1, v4(0, 1.0, 0, 1));
                                 Vector2 player_vec = v2_sub(get_player()->pos, en->pos);
-                                draw_line(en->pos, v2_add(en->pos, player_vec), 1, v4(1.0, 0, 0, 1));
                                 
+                                bool detected = false;
                                 float uDotV = v2_dot(player_vec, facing_vec);
                                 float mag = v2_length(player_vec) * v2_length(facing_vec);
                                 float angle = to_degrees(acos(uDotV / mag)); 
@@ -468,7 +452,24 @@ int entry(int argc, char **argv) {
                                 if(detected){
                                     world->ux_state = UX_lose;
                                 }
-                                pop_z_layer();
+
+                                if(world->debug_render){
+                                    push_z_layer(layer_view);
+                                    draw_line(en->pos, v2_add(en->pos, facing_vec), 1, v4(0, 1.0, 0, 1));
+                                    draw_line(en->pos, v2_add(en->pos, player_vec), 1, v4(1.0, 0, 0, 1));
+
+                                    for( int i = -en->view_angle; i < en->view_angle; i++){
+                                        Vector2 point = en->pos;
+                                        point = v2_add(point, v2(en->view_dist, 0));
+                                        if( i <= 1 && i >= -1){
+                                            point = v2_add(point, v2(2*en->view_dist, 0));
+                                        }
+                                        float rads = ((float)i)*((float)RAD_PER_DEG);
+                                        point = v2_rotate_point_around_pivot(point, en->pos, to_radians((float)i + en->view_direction)); 
+                                        draw_line(en->pos, point, 1, v4(0.5, 0.5, 0, 1));
+                                    }
+                                    pop_z_layer();
+                                }
                             }
                         default:
 		                    set_world_space();
