@@ -361,26 +361,28 @@ int entry(int argc, char **argv) {
             }
              
             Vector2 input_axis = v2(0, 0);
-            if(world->ux_state == UX_default){
-                if (is_key_down('A')) {
-                    input_axis.x -= 1.0;
+            if(world->ux_state != UX_win){
+                if(world->ux_state == UX_default){
+                    if (is_key_down('A')) {
+                        input_axis.x -= 1.0;
+                    }
+                    if (is_key_down('D')) {
+                        input_axis.x += 1.0;
+                    }
+                    if (is_key_down('S')) {
+                        input_axis.y -= 1.0;
+                    }
+                    if (is_key_down('W')) {
+                        input_axis.y += 1.0;
+                    }
                 }
-                if (is_key_down('D')) {
-                    input_axis.x += 1.0;
+                if(is_key_down(KEY_SPACEBAR)){
+                    world->ux_state = UX_changing;
+                    world->changing.rate = 35;
                 }
-                if (is_key_down('S')) {
-                    input_axis.y -= 1.0;
+                else{
+                    world->changing.rate = -45;
                 }
-                if (is_key_down('W')) {
-                    input_axis.y += 1.0;
-                }
-            }
-            if(is_key_down(KEY_SPACEBAR)){
-                world->ux_state = UX_changing;
-                world->changing.rate = 35;
-            }
-            else{
-                world->changing.rate = -45;
             }
 
             input_axis = v2_normalize(input_axis);
@@ -392,6 +394,10 @@ int entry(int argc, char **argv) {
         if(world->changing.current <= 0){
             world->changing.current = 0;
             world->ux_state = UX_default;
+        }
+        else if(world->changing.current >= world->changing.max){
+            world->ux_state = UX_win;
+            world->changing.rate = 0;
         }
 
         //:entity loop 
@@ -460,6 +466,14 @@ int entry(int argc, char **argv) {
             draw_rect_xform(xform, v2(world->changing.max * 0.1, 2.5), COLOR_RED);
             draw_rect_xform(xform, v2(world->changing.current * 0.1, 2.5), COLOR_GREEN);
         }
+        else if(world->ux_state == UX_win){
+            string text = STR("You Win!");
+            set_screen_space();
+            push_z_layer(layer_text);
+            Matrix4 xform = m4_scalar(1.0);
+            xform = m4_translate(xform, v3(screen_width / 4.0, screen_height / 2.0, 0));
+            draw_text_xform(world->font, text, font_height, xform, v2(0.5, 0.5), COLOR_YELLOW);
+        }
 
         //:fps
         if(world->debug_render){
@@ -476,7 +490,7 @@ int entry(int argc, char **argv) {
                 set_screen_space();
                 push_z_layer(layer_text);
                 Matrix4 xform = m4_scalar(1.0);
-                xform = m4_translate(xform, v3(0,0, 0));
+                xform = m4_translate(xform, v3(0,screen_height - (font_height * 0.1), 0));
                 draw_text_xform(world->font, text, font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
             }
         }
