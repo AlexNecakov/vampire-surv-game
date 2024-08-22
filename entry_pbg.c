@@ -167,16 +167,14 @@ void setup_citizen(Entity* en) {
     en->state = ENT_standing;
     en->color = COLOR_WHITE;
     en->view_direction = 0;
-    en->view_dist = 60;
+    en->view_dist = 45;
     en->view_angle = 45;
 }
 
 void render_sprite_entity(Entity* en){
     Sprite* sprite = get_sprite(en->sprite_id);
     Matrix4 xform = m4_scalar(1.0);
-    xform         = m4_translate(xform, v3(0, tile_width * -0.5, 0));
     xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
-    xform         = m4_translate(xform, v3(get_sprite_size(sprite).x * -0.5, 0.0, 0));
     draw_image_xform(sprite->image, xform, get_sprite_size(sprite), en->color);
 
     if(world->debug_render){
@@ -323,7 +321,7 @@ int entry(int argc, char **argv) {
         for (int i = 0; i < 1; i++) {
             Entity* en = entity_create();
             setup_citizen(en);
-            en->pos = v2(-2 * i * tile_width, -i * tile_width + tile_width);
+            en->pos = v2(-2 * i * tile_width, -i * tile_width + 2 * tile_width);
             en->pos = round_v2_to_tile(en->pos);
         }
     }
@@ -368,7 +366,7 @@ int entry(int argc, char **argv) {
             }
              
             Vector2 input_axis = v2(0, 0);
-            if(world->ux_state != UX_win){
+            if(world->ux_state != UX_win && world->ux_state != UX_lose){
                 if(world->ux_state == UX_default){
                     if (is_key_down('A')) {
                         input_axis.x -= 1.0;
@@ -433,16 +431,43 @@ int entry(int argc, char **argv) {
                             push_z_layer(layer_entity);
                             render_sprite_entity(en);
                             
-                            push_z_layer(layer_view);
-                            for( int i = -en->view_angle; i < en->view_angle; i++){
-                                Vector2 point = en->pos;
-                                point = v2_add(point, v2(en->view_dist, 0));
-                                if( i <= 3 && i >= -3){
-                                    point = v2_add(point, v2(2*en->view_dist, 0));
+                            //line of sight
+                            { 
+                                push_z_layer(layer_view);
+                                if(world->debug_render){
+                                    for( int i = -en->view_angle; i < en->view_angle; i++){
+                                        Vector2 point = en->pos;
+                                        point = v2_add(point, v2(en->view_dist, 0));
+                                        if( i <= 1 && i >= -1){
+                                            point = v2_add(point, v2(2*en->view_dist, 0));
+                                        }
+                                        float rads = ((float)i)*((float)RAD_PER_DEG);
+                                        point = v2_rotate_point_around_pivot(point, en->pos, to_radians((float)i + en->view_direction)); 
+                                        draw_line(en->pos, point, 10, v4(0.5, 0.5, 0, 1));
+                                    }
                                 }
-                                float rads = ((float)i)*((float)RAD_PER_DEG);
-                                point = v2_rotate_point_around_pivot(point, en->pos, rads); 
-                                draw_line(en->pos, point, 10, v4(0.5, 0.5, 0, 1));
+                                //player pos en pos. check facing direction. check dist
+                                bool detected = false;
+                                Vector2 facing_vec = v2_add(en->pos, v2(en->view_dist, 0));  
+                                facing_vec = v2_rotate_point_around_pivot(facing_vec, en->pos, to_radians(en->view_direction));
+                                draw_line(en->pos, facing_vec, 1, v4(0, 1.0, 0, 1));
+                                Vector2 player_vec = v2_sub(get_player()->pos, en->pos);
+                                draw_line(en->pos, player_vec, 1, v4(1.0, 0, 0, 1));
+                                double angle = to_degrees(acos((v2_dot(player_vec, facing_vec) / v2_dot(v2_abs(player_vec), v2_abs(facing_vec))))); 
+                                log("%f", angle);
+                                if( angle <= 1 && angle >= -1){
+                                    detected = (v2_length(player_vec) <= (3 * en->view_dist))?true:false;
+                                }
+                                else if( angle <= en->view_angle && angle >= -en->view_angle){
+                                    detected = (v2_length(player_vec) <= (en->view_dist))?true:false;
+                                }
+                                else{
+                                    detected = false;
+                                }
+                                if(detected){
+                                    //world->ux_state = UX_lose;
+                                }
+                                pop_z_layer();
                             }
                         default:
 		                    set_world_space();
@@ -496,6 +521,14 @@ int entry(int argc, char **argv) {
             Matrix4 xform = m4_scalar(1.0);
             xform = m4_translate(xform, v3(screen_width / 4.0, screen_height / 2.0, 0));
             draw_text_xform(world->font, text, font_height, xform, v2(0.5, 0.5), COLOR_YELLOW);
+        }
+        else if(world->ux_state == UX_lose){
+            string text = STR("You Lose!");
+            set_screen_space();
+            push_z_layer(layer_text);
+            Matrix4 xform = m4_scalar(1.0);
+            xform = m4_translate(xform, v3(screen_width / 4.0, screen_height / 2.0, 0));
+            draw_text_xform(world->font, text, font_height, xform, v2(0.5, 0.5), COLOR_RED);
         }
 
         //:fps
