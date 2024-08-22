@@ -1,8 +1,5 @@
 //:constants
 #define MAX_ENTITY_COUNT 1024
-#define MAX_PLAYER_COUNT 4
-#define MAX_MONSTER_COUNT MAX_ENTITY_COUNT
-#define MAX_ACTION_COUNT 1024
 
 const u32 font_height = 64;
 const float32 font_padding = (float32)font_height/10.0f;
@@ -36,14 +33,144 @@ float sin_breathe(float time, float rate) {
 bool almost_equals(float a, float b, float epsilon) {
  return fabs(a - b) <= epsilon;
 }
+//:sprite
+typedef struct Sprite {
+    Gfx_Image* image;
+} Sprite;
 
-//:coordinate conversion
+typedef enum SpriteID {
+    SPRITE_nil,
+    SPRITE_player,
+    SPRITE_superplayer,
+    SPRITE_citizen,
+    SPRITE_MAX,
+} SpriteID;
+
+Sprite sprites[SPRITE_MAX];
+
+Sprite* get_sprite(SpriteID id){
+    if (id >= 0 && id < SPRITE_MAX){
+    	Sprite* sprite = &sprites[id];
+		if (sprite->image) {
+			return sprite;
+		} else {
+			return &sprites[0];
+		}
+    }
+    return &sprites[0];
+}
+
+Vector2 get_sprite_size(Sprite* sprite) {
+	return (Vector2) { sprite->image->width, sprite->image->height };
+}
+
+//:ux state
+typedef enum UXState {
+	UX_nil,
+	UX_default,
+	UX_debug,
+} UXState;
+
+//:bar
+typedef struct Bar {
+    float64 max;
+    float64 current;
+    float64 rate;
+} Bar;
+
+//:entity
+typedef enum EntityArchetype{
+    ARCH_nil = 0,
+    ARCH_player,
+    ARCH_citizen,
+    ARCH_text,
+    ARCH_MAX,
+} EntityArchetype;
+
+typedef enum EntityState{
+    ENT_nil = 0,
+    ENT_standing,
+    ENT_attacking,
+} EntityState;
+
+typedef struct Entity{
+    bool is_valid;
+    EntityArchetype arch;
+    EntityState state;
+    SpriteID sprite_id;
+    Vector2 pos;
+    Vector4 color;
+} Entity;
+
+//:world
+typedef struct World{
+	Entity entities[MAX_ENTITY_COUNT];
+	UXState ux_state;
+    bool debug_render;
+    Gfx_Font* font;
+} World;
+World* world = 0;
+
 typedef struct WorldFrame {
+	Entity* selected_entity;
 	Matrix4 world_proj;
 	Matrix4 world_view;
+	bool hover_consumed;
+	Entity* player;
+	// :frame state
 } WorldFrame;
 WorldFrame world_frame;
 
+Entity* get_player() {
+	return world_frame.player;
+}
+
+Entity* entity_create() {
+    Entity* entity_found = 0;
+    for (int i = 0; i < MAX_ENTITY_COUNT; i++){
+        Entity* existing_entity = &world->entities[i];
+        if (!existing_entity->is_valid){
+            entity_found = existing_entity;
+            break;
+        }
+    }
+    assert(entity_found, "No more free entities!");
+    entity_found->is_valid = true;
+    return entity_found;
+}
+
+void entity_destroy(Entity* entity){
+    memset(entity, 0, sizeof(Entity));
+}
+
+void setup_player(Entity* en) {
+    en->arch = ARCH_player;
+    en->sprite_id = SPRITE_player;
+    en->state = ENT_standing;
+    en->color = COLOR_WHITE;
+}
+
+void setup_citizen(Entity* en) {
+    en->arch = ARCH_citizen;
+    en->sprite_id = SPRITE_citizen;
+    en->state = ENT_standing;
+    en->color = COLOR_WHITE;
+}
+
+void render_sprite_entity(Entity* en){
+    Sprite* sprite = get_sprite(en->sprite_id);
+    Matrix4 xform = m4_scalar(1.0);
+    xform         = m4_translate(xform, v3(0, tile_width * -0.5, 0));
+    xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
+    xform         = m4_translate(xform, v3(get_sprite_size(sprite).x * -0.5, 0.0, 0));
+    draw_image_xform(sprite->image, xform, get_sprite_size(sprite), en->color);
+
+    if(world->debug_render){
+        draw_text(world->font, sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
+    }
+}
+
+//:coordinate conversion
 void set_screen_space() {
 	draw_frame.camera_xform = m4_scalar(1.0);
 	draw_frame.projection = m4_make_orthographic_projection(0.0, screen_width, 0.0, screen_height, -1, 10);
@@ -139,141 +266,6 @@ void animate_v2_to_target(Vector2* value, Vector2 target, float delta_t, float r
 	animate_f32_to_target(&(value->y), target.y, delta_t, rate);
 }
 
-//:sprite
-typedef struct Sprite {
-    Gfx_Image* image;
-} Sprite;
-
-typedef enum SpriteID {
-    SPRITE_nil,
-    SPRITE_player,
-    SPRITE_citizen,
-    SPRITE_MAX,
-} SpriteID;
-
-Sprite sprites[SPRITE_MAX];
-
-Sprite* get_sprite(SpriteID id){
-    if (id >= 0 && id < SPRITE_MAX){
-    	Sprite* sprite = &sprites[id];
-		if (sprite->image) {
-			return sprite;
-		} else {
-			return &sprites[0];
-		}
-    }
-    return &sprites[0];
-}
-
-Vector2 get_sprite_size(Sprite* sprite) {
-	return (Vector2) { sprite->image->width, sprite->image->height };
-}
-
-//:ux state
-typedef enum UXState {
-	UX_nil,
-	UX_default,
-	UX_debug,
-} UXState;
-
-//:bar
-typedef struct Bar {
-    float64 max;
-    float64 current;
-    float64 rate;
-} Bar;
-
-
-//:entity
-typedef enum EntityArchetype{
-    ARCH_nil = 0,
-    ARCH_player,
-    ARCH_citizen,
-    ARCH_text,
-    ARCH_MAX,
-} EntityArchetype;
-
-typedef enum EntityState{
-    ENT_nil = 0,
-    ENT_standing,
-    ENT_attacking,
-} EntityState;
-
-typedef struct Entity{
-    bool is_valid;
-    EntityArchetype arch;
-    EntityState state;
-	string name;
-    SpriteID sprite_id;
-    bool render_sprite;
-    Vector2 current_pos;
-    Vector4 color;
-} Entity;
-
-//:world
-typedef struct World{
-	Entity entities[MAX_ENTITY_COUNT];
-	UXState ux_state;
-	Matrix4 world_proj;
-	Matrix4 world_view;
-    bool debug_render;
-    Gfx_Font* font;
-} World;
-World* world = 0;
-
-Entity* entity_create() {
-    Entity* entity_found = 0;
-    for (int i = 0; i < MAX_ENTITY_COUNT; i++){
-        Entity* existing_entity = &world->entities[i];
-        if (!existing_entity->is_valid){
-            entity_found = existing_entity;
-            break;
-        }
-    }
-    assert(entity_found, "No more free entities!");
-    entity_found->is_valid = true;
-    return entity_found;
-}
-
-void entity_destroy(Entity* entity){
-    memset(entity, 0, sizeof(Entity));
-}
-
-void setup_player(Entity* en) {
-    en->arch = ARCH_player;
-    en->sprite_id = SPRITE_player;
-    en->color = COLOR_WHITE;
-    en->name = STR("Player");
-    en->state = ENT_standing;
-}
-
-void setup_text(Entity* en, string name){
-    en->arch = ARCH_text;
-    en->name = name;
-    en->color = COLOR_WHITE;
-}
-
-void setup_citizen(Entity* en) {
-    en->arch = ARCH_citizen;
-    en->sprite_id = SPRITE_citizen;
-    en->color = COLOR_WHITE;
-    en->state = ENT_standing;
-}
-
-
-void render_sprite_entity(Entity* en){
-    Sprite* sprite = get_sprite(en->sprite_id);
-    Matrix4 xform = m4_scalar(1.0);
-    xform         = m4_translate(xform, v3(0, tile_width * -0.5, 0));
-    xform         = m4_translate(xform, v3(en->current_pos.x, en->current_pos.y, 0));
-    xform         = m4_translate(xform, v3(get_sprite_size(sprite).x * -0.5, 0.0, 0));
-    draw_image_xform(sprite->image, xform, get_sprite_size(sprite), en->color);
-
-    if(world->debug_render){
-        draw_text(world->font, sprint(temp_allocator, STR("%f %f"), en->current_pos.x, en->current_pos.y), font_height, en->current_pos, v2(0.1, 0.1), COLOR_WHITE);
-    }
-}
-
 //:entry
 int entry(int argc, char **argv) {
 	
@@ -282,7 +274,7 @@ int entry(int argc, char **argv) {
 	window.scaled_height = 720; 
     window.x = 200;
     window.y = 200;
-	window.clear_color = hex_to_rgba(0x1e1e1eff);
+	window.clear_color = v4(0, 0.3, 0.7, 1);
     float32 aspectRatio = (float32)window.width/(float32)window.height; 
     float32 zoom = window.width/spriteSheetWidth;
     float y_pos = (screen_height/3.0f) - 9.0f;
@@ -296,9 +288,9 @@ int entry(int argc, char **argv) {
 	render_atlas_if_not_yet_rendered(world->font, 32, 'A');
 
     sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\undefined.png"), get_heap_allocator()) };
-    sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\mannequin.png"), get_heap_allocator()) };
-    sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\Fighter.png"), get_heap_allocator()) };
-    sprites[SPRITE_citizen] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\metroid.png"), get_heap_allocator()) };
+    sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\player.png"), get_heap_allocator()) };
+    sprites[SPRITE_superplayer] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\superplayer.png"), get_heap_allocator()) };
+    sprites[SPRITE_citizen] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\citizen.png"), get_heap_allocator()) };
 	
     // @ship debug this off
 	{
@@ -307,20 +299,18 @@ int entry(int argc, char **argv) {
 			assert(sprite->image, "Sprite was not setup properly");
 		}
 	}
-	
-    Entity* player_en = entity_create();
-    setup_player(player_en);
+    
+    {	
+        Entity* player_en = entity_create();
+        setup_player(player_en);
 
-    for (int i = 0; i < 4; i++) {
-        Entity* en = entity_create();
-        setup_citizen(en);
-        en->current_pos = v2(-2 * i * tile_width, -i * tile_width + tile_width);
-        en->current_pos = round_v2_to_tile(en->current_pos);
+        for (int i = 0; i < 4; i++) {
+            Entity* en = entity_create();
+            setup_citizen(en);
+            en->pos = v2(-2 * i * tile_width, -i * tile_width + tile_width);
+            en->pos = round_v2_to_tile(en->pos);
+        }
     }
-
-    Entity* fps_count_en = entity_create();
-    setup_text(fps_count_en, STR("fps: 0.0"));
-    fps_count_en->current_pos = v2(0, screen_height - (font_height + font_padding) * 0.1);
 
     float64 seconds_counter = 0.0;
     s32 frame_count = 0;
@@ -332,39 +322,75 @@ int entry(int argc, char **argv) {
 		reset_temporary_storage();
 		world_frame = (WorldFrame){0};
         float64 now = os_get_elapsed_seconds();
-		float64 delta = now - last_time;
+		float64 delta_t = now - last_time;
 		last_time = now;	
         os_update(); 
 
         //:frame updating
         draw_frame.enable_z_sorting = true;
 		world_frame.world_proj = m4_make_orthographic_projection(window.width * -0.5, window.width * 0.5, window.height * -0.5, window.height * 0.5, -1, 10);
-        
+
+		// find player 
+		for (int i = 0; i < MAX_ENTITY_COUNT; i++) {
+			Entity* en = &world->entities[i];
+			if (en->is_valid && en->arch == ARCH_player) {
+				world_frame.player = en;
+			}
+		}
+
         //:camera
 		{
 			world_frame.world_view = m4_make_scale(v3(1.0, 1.0, 1.0));
 			world_frame.world_view = m4_mul(world_frame.world_view, m4_make_scale(v3(1.0/zoom, 1.0/zoom, 1.0)));
 		}
+        
+        //:input
+        {
+            //check exit cond first
+            if (is_key_just_pressed(KEY_ESCAPE)){
+                window.should_close = true;
+            }
+             
+            Vector2 input_axis = v2(0, 0);
+            if (is_key_down('A')) {
+                input_axis.x -= 1.0;
+            }
+            if (is_key_down('D')) {
+                input_axis.x += 1.0;
+            }
+            if (is_key_down('S')) {
+                input_axis.y -= 1.0;
+            }
+            if (is_key_down('W')) {
+                input_axis.y += 1.0;
+            }
+            input_axis = v2_normalize(input_axis);
+
+            get_player()->pos = v2_add(get_player()->pos, v2_mulf(input_axis, 100.0 * delta_t));
+
+        }
+
 
         //:tile rendering
 		{
 		    set_world_space();
 		    push_z_layer(layer_world);
 
-			int player_tile_x = world_pos_to_tile_pos(0);
-			int player_tile_y = world_pos_to_tile_pos(0);
+			int player_tile_x = world_pos_to_tile_pos(get_player()->pos.x);
+			int player_tile_y = world_pos_to_tile_pos(get_player()->pos.y);
 			int tile_radius_x = 40;
 			int tile_radius_y = 30;
 			for (int x = player_tile_x - tile_radius_x; x < player_tile_x + tile_radius_x; x++) {
 				for (int y = player_tile_y - tile_radius_y; y < player_tile_y + tile_radius_y; y++) {
 					if ((x + (y % 2 == 0) ) % 2 == 0) {
-						Vector4 col = v4(0.6, 0.6, 0.6, 0.1);
+						Vector4 col = v4(0.1, 0.1, 0.1, 0.1);
 						float x_pos = x * tile_width;
-						float tile_y_pos = y * tile_width;
-						draw_rect(v2(x_pos + tile_width * -0.5, tile_y_pos + tile_width * -0.5), v2(tile_width, tile_width), col);
+						float y_pos = y * tile_width;
+						//draw_rect(v2(x_pos + tile_width * -0.5, y_pos + tile_width * -0.5), v2(tile_width, tile_width), col);
 					}
 				}
 			}
+
             pop_z_layer();
 		}
 
@@ -374,27 +400,10 @@ int entry(int argc, char **argv) {
                 Entity* en = &world->entities[i];
                 if (en->is_valid){
                     switch (en->arch){
-                        case ARCH_player:
-		                    set_world_space();
-                            push_z_layer(layer_world);
-                            render_sprite_entity(en);
-                            break;
-                        case ARCH_citizen:
-		                    set_world_space();
-                            push_z_layer(layer_world);
-                            render_sprite_entity(en);
-                            break;
-                        case ARCH_text: 
-                            set_screen_space();
-                            push_z_layer(layer_text);
-                            Matrix4 xform = m4_scalar(1.0);
-                            string text = en->name;
-                            xform = m4_translate(xform, v3(en->current_pos.x, en->current_pos.y, 0));
-                            draw_text_xform(world->font, text, font_height, xform, v2(0.1, 0.1), en->color);
-                            break;
                         default:
 		                    set_world_space();
                             push_z_layer(layer_world);
+                            render_sprite_entity(en);
                             break;
                     }
                     pop_z_layer();
@@ -403,27 +412,24 @@ int entry(int argc, char **argv) {
             }
         }
 
-        //:input
-        {
-            //check exit cond first
-            if (is_key_just_pressed(KEY_ESCAPE)){
-                window.should_close = true;
-            }
-            	    
-        }
-
         //:fps
         if(world->debug_render){
-            seconds_counter += delta;
-            frame_count+=1;
-            if(seconds_counter > 1.0){
-                last_fps = frame_count;
-                frame_count = 0;
-                seconds_counter = 0.0;
+            {
+                seconds_counter += delta_t;
+                frame_count+=1;
+                if(seconds_counter > 1.0){
+                    last_fps = frame_count;
+                    frame_count = 0;
+                    seconds_counter = 0.0;
+                }
+                string text = STR("fps: %i");
+                text = sprint(temp_allocator, text, last_fps);
+                set_screen_space();
+                push_z_layer(layer_text);
+                Matrix4 xform = m4_scalar(1.0);
+                xform = m4_translate(xform, v3(0,0, 0));
+                draw_text_xform(world->font, text, font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
             }
-            string text = STR("fps: %i");
-            text = sprint(temp_allocator, text, last_fps);
-            fps_count_en->name = text;
         }
 
         gfx_update();
