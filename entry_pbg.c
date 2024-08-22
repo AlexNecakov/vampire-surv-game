@@ -11,6 +11,7 @@ const s32 layer_stage_bg = 0;
 const s32 layer_stage_fg = 5;
 const s32 layer_world = 10;
 const s32 layer_entity = 20;
+const s32 layer_costume = 25;
 const s32 layer_ui_bg = 30;
 const s32 layer_ui_fg = 35;
 const s32 layer_text = 40;
@@ -102,6 +103,7 @@ typedef struct Entity{
     EntityArchetype arch;
     EntityState state;
     SpriteID sprite_id;
+    SpriteID sprite_costume_id;
     Vector2 pos;
     Vector4 color;
 } Entity;
@@ -150,6 +152,7 @@ void entity_destroy(Entity* entity){
 void setup_player(Entity* en) {
     en->arch = ARCH_player;
     en->sprite_id = SPRITE_player;
+    en->sprite_costume_id = SPRITE_superplayer;
     en->state = ENT_standing;
     en->color = COLOR_WHITE;
 }
@@ -397,9 +400,24 @@ int entry(int argc, char **argv) {
                 Entity* en = &world->entities[i];
                 if (en->is_valid){
                     switch (en->arch){
+                        case ARCH_player:
+		                    set_world_space();
+                            push_z_layer(layer_entity);
+                            render_sprite_entity(en);
+                            
+                            push_z_layer(layer_costume);
+                            Sprite* costume = get_sprite(en->sprite_costume_id);
+                            Sprite* sprite = get_sprite(en->sprite_id);
+                            Matrix4 xform = m4_scalar(1.0);
+                            xform         = m4_translate(xform, v3(0, tile_width * -0.5, 0));
+                            xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
+                            xform         = m4_translate(xform, v3(get_sprite_size(sprite).x * -1 - 0.5, 0.0, 0));
+                            draw_image_xform(costume->image, xform, v2(get_sprite_size(costume).x, get_sprite_size(costume).y * (world->changing.current / world->changing.max)), en->color);
+
+                            break;
                         default:
 		                    set_world_space();
-                            push_z_layer(layer_world);
+                            push_z_layer(layer_entity);
                             render_sprite_entity(en);
                             break;
                     }
