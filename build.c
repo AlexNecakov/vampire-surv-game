@@ -33,7 +33,7 @@ typedef struct Context_Extra {
 //
 
 // this is a minimal starting point for new projects. Copy & rename to get started
-#include "entry_pbg.c"
+#include "entry_mpg.c"
 
 // #include "oogabooga/examples/text_rendering.c"
 // #include "oogabooga/examples/custom_logger.c"
