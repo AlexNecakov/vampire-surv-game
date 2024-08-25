@@ -147,6 +147,8 @@ void entity_destroy(Entity* entity){
 void setup_player(Entity* en) {
     en->arch = ARCH_player;
     en->sprite_id = SPRITE_player;
+    Sprite* sprite = get_sprite(en->sprite_id);
+    en->size = get_sprite_size(sprite); 
     en->is_sprite = true;
     en->has_collision = true;
     en->color = COLOR_WHITE;
@@ -482,6 +484,15 @@ int entry(int argc, char **argv) {
 		                    set_world_space();
                             push_z_layer(layer_entity);
                             render_rect_entity(en);
+
+                            if(
+                                get_player()->pos.x < en->pos.x + en->size.x &&
+                                get_player()->pos.x + get_player()->size.x > en->pos.x &&
+                                get_player()->pos.y < en->pos.y + en->size.y &&
+                                get_player()->pos.y + get_player()->size.y > en->pos.y
+                            ){
+                                log("collision");    
+                            }
                             break;
                         default:
 		                    set_world_space();
