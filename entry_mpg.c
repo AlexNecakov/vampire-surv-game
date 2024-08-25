@@ -5,7 +5,10 @@ const u32 font_height = 64;
 const float32 font_padding = (float32)font_height/10.0f;
 
 const float32 spriteSheetWidth = 240.0;
-const s32 tile_width = 8;
+const s32 tile_width = 16;
+
+const s32 maze_width = 16;
+const s32 maze_height = 16;
 
 const s32 layer_stage_bg = 0;
 const s32 layer_stage_fg = 5;
@@ -85,9 +88,13 @@ typedef enum EntityArchetype{
 typedef struct Entity{
     bool is_valid;
     EntityArchetype arch;
+    bool is_sprite;
     SpriteID sprite_id;
+    bool is_line;
     Vector2 pos;
+    Vector2 size;
     Vector4 color;
+    bool has_collision;
 } Entity;
 
 //:tile
@@ -102,7 +109,7 @@ typedef struct World{
 	Entity entities[MAX_ENTITY_COUNT];
 	UXState ux_state;
     bool debug_render;
-    Tile tiles[8][8];
+    Tile tiles[maze_width][maze_height];
     Gfx_Font* font;
 } World;
 World* world = 0;
@@ -140,13 +147,27 @@ void entity_destroy(Entity* entity){
 void setup_player(Entity* en) {
     en->arch = ARCH_player;
     en->sprite_id = SPRITE_player;
+    en->is_sprite = true;
+    en->has_collision = true;
     en->color = COLOR_WHITE;
 }
 
 void setup_citizen(Entity* en) {
     en->arch = ARCH_monster;
+    en->is_sprite = true;
     en->sprite_id = SPRITE_monster;
+    en->is_sprite = true;
+    en->has_collision = true;
     en->color = COLOR_WHITE;
+}
+
+void setup_wall(Entity* en, Vector2 size) {
+    en->arch = ARCH_terrain;
+    en->is_line = true;
+    en->is_sprite = true;
+    en->has_collision = true;
+    en->color = COLOR_WHITE;
+    en->size = size;
 }
 
 void render_sprite_entity(Entity* en){
@@ -158,6 +179,13 @@ void render_sprite_entity(Entity* en){
     if(world->debug_render){
         draw_text(world->font, sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
     }
+}
+
+void render_rect_entity(Entity* en){
+    Matrix4 xform = m4_scalar(1.0);
+    xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
+    draw_rect_xform(xform, en->size, en->color);
+
 }
 
 //:coordinate conversion
@@ -267,7 +295,7 @@ void dfs(Vector2 current_tile){
         order[i] = order[j];
         order[j] = temp;
     } 
-    log("order %d %d %d %d", order[0], order[1], order[2], order[3]);
+    //log("order %d %d %d %d", order[0], order[1], order[2], order[3]);
 
     for(int i = 0; i < 4; i++){
         Vector2 next_tile = current_tile;
@@ -283,16 +311,16 @@ void dfs(Vector2 current_tile){
         else if(order[i] == 3){
            next_tile.x = current_tile.x - 1; 
         }
-        log("current %d %d, next %d %d", (int)current_tile.x, (int)current_tile.y, (int)next_tile.x, (int)next_tile.y);
+        //log("current %d %d, next %d %d", (int)current_tile.x, (int)current_tile.y, (int)next_tile.x, (int)next_tile.y);
         //check oob
         if(next_tile.x < 0 || next_tile.y < 0){
         }
-        else if(next_tile.x > 7 || next_tile.y > 7){
+        else if(next_tile.x > maze_width-1 || next_tile.y > maze_width-1){
         }
         else if(world->tiles[(int)next_tile.x][(int)next_tile.y].visited == false){
             world->tiles[(int)current_tile.x][(int)current_tile.y].walls[order[i]] = false;
             world->tiles[(int)next_tile.x][(int)next_tile.y].walls[(order[i]+2)%4] = false;
-            log("destroyed current wall %d next wall %d", order[i], (order[i]+2)%4);
+            //log("destroyed current wall %d next wall %d", order[i], (order[i]+2)%4);
             dfs(next_tile); 
         }
     }
@@ -337,8 +365,8 @@ int entry(int argc, char **argv) {
         setup_player(player_en);
 
         //:init tiles
-        for(int i = 0; i < 8; i++){
-            for(int j = 0; j < 8; j++){
+        for(int i = 0; i < maze_width; i++){
+            for(int j = 0; j < maze_height; j++){
                 for(int k = 0; k < 4; k++){
                     world->tiles[i][j].walls[k] = true;
                 }
@@ -346,9 +374,31 @@ int entry(int argc, char **argv) {
         }        
         Vector2 current_pos = v2(0,0);
         dfs(current_pos);
-        for(int i = 0; i < 8; i++){
-            for(int j = 0; j < 8; j++){
-                log("tile %d %d walls %d %d %d %d", i,j, world->tiles[i][j].walls[0], world->tiles[i][j].walls[1], world->tiles[i][j].walls[2], world->tiles[i][j].walls[3]);
+        for(int i = 0; i < maze_width; i++){
+            for(int j = 0; j < maze_height; j++){
+                float x_pos = i * tile_width;
+                float y_pos = j * tile_width;
+                if(world->tiles[i][j].walls[0]){
+                    Entity* en = entity_create();
+                    setup_wall(en, v2(tile_width, 1));
+                    en->pos = v2(x_pos, y_pos + tile_width);
+                } 
+                if(world->tiles[i][j].walls[1]){
+                    Entity* en = entity_create();
+                    setup_wall(en, v2(1, tile_width));
+                    en->pos = v2(x_pos + tile_width, y_pos);
+                } 
+                if(world->tiles[i][j].walls[2]){
+                    Entity* en = entity_create();
+                    setup_wall(en, v2(tile_width, 1));
+                    en->pos = v2(x_pos, y_pos);
+                } 
+                if(world->tiles[i][j].walls[3]){
+                    Entity* en = entity_create();
+                    setup_wall(en, v2(1, tile_width));
+                    en->pos = v2(x_pos, y_pos);
+                } 
+                //log("tile %d %d walls %d %d %d %d", i,j, world->tiles[i][j].walls[0], world->tiles[i][j].walls[1], world->tiles[i][j].walls[2], world->tiles[i][j].walls[3]);
             }
         }        
 
@@ -428,6 +478,11 @@ int entry(int argc, char **argv) {
                             push_z_layer(layer_entity);
                             render_sprite_entity(en);
                             break;
+                        case ARCH_terrain:
+		                    set_world_space();
+                            push_z_layer(layer_entity);
+                            render_rect_entity(en);
+                            break;
                         default:
 		                    set_world_space();
                             push_z_layer(layer_entity);
@@ -445,8 +500,8 @@ int entry(int argc, char **argv) {
 		    set_world_space();
 		    push_z_layer(layer_stage_fg);
 
-			int tile_radius_x = 8;
-			int tile_radius_y = 8;
+			int tile_radius_x = maze_width;
+			int tile_radius_y = maze_height;
 			for (int x = 0; x < tile_radius_x; x++) {
 				for (int y = 0; y < tile_radius_y; y++) {
                     float x_pos = x * tile_width;
