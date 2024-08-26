@@ -5,7 +5,7 @@ const u32 font_height = 64;
 const float32 font_padding = (float32)font_height/10.0f;
 
 const float32 spriteSheetWidth = 240.0;
-const s32 tile_width = 16;
+const s32 tile_width = 20;
 
 const s32 maze_width = 16;
 const s32 maze_height = 16;
@@ -365,6 +365,7 @@ int entry(int argc, char **argv) {
     {	
         Entity* player_en = entity_create();
         setup_player(player_en);
+        player_en->pos = v2(5,5);
 
         //:init tiles
         for(int i = 0; i < maze_width; i++){
@@ -439,13 +440,13 @@ int entry(int argc, char **argv) {
 		}
         
         //:input
+        Vector2 input_axis = v2(0, 0);
         {
             //check exit cond first
             if (is_key_just_pressed(KEY_ESCAPE)){
                 window.should_close = true;
             }
              
-            Vector2 input_axis = v2(0, 0);
             if(world->ux_state != UX_win && world->ux_state != UX_lose){
                 if(world->ux_state == UX_default){
                     if (is_key_down('A')) {
@@ -465,7 +466,6 @@ int entry(int argc, char **argv) {
 
             input_axis = v2_normalize(input_axis);
 
-            get_player()->pos = v2_add(get_player()->pos, v2_mulf(input_axis, 100.0 * delta_t));
 
         }
               
@@ -485,13 +485,27 @@ int entry(int argc, char **argv) {
                             push_z_layer(layer_entity);
                             render_rect_entity(en);
 
+                            //:collision
+                            Vector2 next_pos = v2_add(get_player()->pos, v2_mulf(input_axis, 100.0 * delta_t));
                             if(
-                                get_player()->pos.x < en->pos.x + en->size.x &&
-                                get_player()->pos.x + get_player()->size.x > en->pos.x &&
-                                get_player()->pos.y < en->pos.y + en->size.y &&
-                                get_player()->pos.y + get_player()->size.y > en->pos.y
+                                next_pos.x < en->pos.x + en->size.x &&
+                                next_pos.x + get_player()->size.x > en->pos.x &&
+                                next_pos.y < en->pos.y + en->size.y &&
+                                next_pos.y + get_player()->size.y > en->pos.y
                             ){
-                                log("collision");    
+                                input_axis = v2(0,0);
+                                if(next_pos.x + (get_player()->size.x/2.0) < en->pos.x + (en->size.x/2.0)){
+                                    //next_pos.x++;
+                                }
+                                if(next_pos.x + (get_player()->size.x/2.0) > en->pos.x + (en->size.x/2.0)){
+                                    //next_pos.x--;
+                                } 
+                                if(next_pos.y + (get_player()->size.y/2.0) > en->pos.y + (en->size.y/2.0)){
+                                    //next_pos.y++;
+                                }
+                                if(next_pos.y + (get_player()->size.y/2.0) < en->pos.y + (en->size.y/2.0)){
+                                    //next_pos.y--;
+                                } 
                             }
                             break;
                         default:
@@ -505,6 +519,7 @@ int entry(int argc, char **argv) {
                    
             }
         }
+        get_player()->pos = v2_add(get_player()->pos, v2_mulf(input_axis, 100.0 * delta_t));
 
         //:tile rendering
 		{
