@@ -411,6 +411,7 @@ int entry(int argc, char **argv) {
     s32 frame_count = 0;
     s32 last_fps = 0;
     float64 last_time = os_get_elapsed_seconds();
+    Vector2 camera_pos = v2(0,0);
 
     //:loop
     while (!window.should_close) {
@@ -420,18 +421,8 @@ int entry(int argc, char **argv) {
 		float64 delta_t = now - last_time;
 		last_time = now;	
         os_update(); 
-
-        //:frame updating
-        draw_frame.enable_z_sorting = true;
-		world_frame.world_proj = m4_make_orthographic_projection(window.width * -0.5, window.width * 0.5, window.height * -0.5, window.height * 0.5, -1, 10);
-
-        //:camera
-		{
-			world_frame.world_view = m4_make_scale(v3(1.0, 1.0, 1.0));
-			world_frame.world_view = m4_mul(world_frame.world_view, m4_make_scale(v3(1.0/zoom, 1.0/zoom, 1.0)));
-		}
-
-		// find player 
+	
+        // find player 
 		for (int i = 0; i < MAX_ENTITY_COUNT; i++) {
 			Entity* en = &world->entities[i];
 			if (en->is_valid && en->arch == ARCH_player) {
@@ -439,6 +430,21 @@ int entry(int argc, char **argv) {
 			}
 		}
         
+
+        //:frame updating
+        draw_frame.enable_z_sorting = true;
+		world_frame.world_proj = m4_make_orthographic_projection(window.width * -0.5, window.width * 0.5, window.height * -0.5, window.height * 0.5, -1, 10);
+
+        // :camera
+		{
+			Vector2 target_pos = get_player()->pos;
+			animate_v2_to_target(&camera_pos, target_pos, delta_t, 30.0f);
+
+			world_frame.world_view = m4_make_scale(v3(1.0, 1.0, 1.0));
+			world_frame.world_view = m4_mul(world_frame.world_view, m4_make_translation(v3(camera_pos.x, camera_pos.y, 0)));
+			world_frame.world_view = m4_mul(world_frame.world_view, m4_make_scale(v3(1.0/zoom, 1.0/zoom, 1.0)));
+		}
+
         //:input
         Vector2 input_axis = v2(0, 0);
         {
