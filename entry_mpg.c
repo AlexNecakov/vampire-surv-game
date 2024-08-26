@@ -95,7 +95,42 @@ typedef struct Entity{
     Vector2 size;
     Vector4 color;
     bool has_collision;
+    Vector2 move_vec;
 } Entity;
+
+Vector2 get_entity_midpoint(Entity* en){
+    return v2(en->pos.x + en->size.x/2.0, en->pos.y + en->size.y/2.0);
+}
+
+//:collision
+void check_collision(Entity* dynamic_en, Entity* static_en, float delta_t){
+    Vector2 next_pos = v2_add(dynamic_en->pos, v2_mulf(dynamic_en->move_vec, 100.0 * delta_t));
+    if(
+        next_pos.x < static_en->pos.x + static_en->size.x &&
+        next_pos.x + dynamic_en->size.x > static_en->pos.x &&
+        next_pos.y < static_en->pos.y + static_en->size.y &&
+        next_pos.y + dynamic_en->size.y > static_en->pos.y
+    ){
+        Vector2 next_pos_x = v2_add(dynamic_en->pos, v2_mulf(v2(dynamic_en->move_vec.x, 0), 100.0 * delta_t));
+        Vector2 next_pos_y = v2_add(dynamic_en->pos, v2_mulf(v2(0, dynamic_en->move_vec.y), 100.0 * delta_t));
+        if(
+            next_pos_x.x < static_en->pos.x + static_en->size.x &&
+            next_pos_x.x + dynamic_en->size.x > static_en->pos.x &&
+            next_pos_x.y < static_en->pos.y + static_en->size.y &&
+            next_pos_x.y + dynamic_en->size.y > static_en->pos.y
+        ){
+            dynamic_en->move_vec.x = 0;
+        }
+        if(
+            next_pos_y.x < static_en->pos.x + static_en->size.x &&
+            next_pos_y.x + dynamic_en->size.x > static_en->pos.x &&
+            next_pos_y.y < static_en->pos.y + static_en->size.y &&
+            next_pos_y.y + dynamic_en->size.y > static_en->pos.y
+        ){
+            dynamic_en->move_vec.y = 0;
+        }
+    }
+}
 
 //:tile
 typedef struct Tile{
@@ -119,11 +154,16 @@ typedef struct WorldFrame {
 	Matrix4 world_proj;
 	Matrix4 world_view;
 	Entity* player;
+	Entity* monster;
 } WorldFrame;
 WorldFrame world_frame;
 
 Entity* get_player() {
 	return world_frame.player;
+}
+
+Entity* get_monster() {
+	return world_frame.monster;
 }
 
 Entity* entity_create() {
@@ -154,7 +194,7 @@ void setup_player(Entity* en) {
     en->color = COLOR_WHITE;
 }
 
-void setup_citizen(Entity* en) {
+void setup_monster(Entity* en) {
     en->arch = ARCH_monster;
     en->is_sprite = true;
     en->sprite_id = SPRITE_monster;
@@ -179,7 +219,7 @@ void render_sprite_entity(Entity* en){
     draw_image_xform(sprite->image, xform, get_sprite_size(sprite), en->color);
 
     if(world->debug_render){
-        draw_text(world->font, sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
+        //draw_text(world->font, sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
     }
 }
 
@@ -367,6 +407,10 @@ int entry(int argc, char **argv) {
         setup_player(player_en);
         player_en->pos = v2(5,5);
 
+        Entity* monster_en = entity_create();
+        setup_monster(monster_en);
+        monster_en->pos = v2(1 + 3 * tile_width,1 + 3 * tile_width);
+
         //:init tiles
         for(int i = 0; i < maze_width; i++){
             for(int j = 0; j < maze_height; j++){
@@ -428,6 +472,9 @@ int entry(int argc, char **argv) {
 			if (en->is_valid && en->arch == ARCH_player) {
 				world_frame.player = en;
 			}
+			if (en->is_valid && en->arch == ARCH_monster) {
+				world_frame.monster = en;
+			}
 		}
         
 
@@ -437,7 +484,7 @@ int entry(int argc, char **argv) {
 
         // :camera
 		{
-			Vector2 target_pos = get_player()->pos;
+			Vector2 target_pos = get_entity_midpoint(get_player());
 			animate_v2_to_target(&camera_pos, target_pos, delta_t, 30.0f);
 
 			world_frame.world_view = m4_make_scale(v3(1.0, 1.0, 1.0));
@@ -446,13 +493,13 @@ int entry(int argc, char **argv) {
 		}
 
         //:input
-        Vector2 input_axis = v2(0, 0);
         {
             //check exit cond first
             if (is_key_just_pressed(KEY_ESCAPE)){
                 window.should_close = true;
             }
              
+            Vector2 input_axis = v2(0, 0);
             if(world->ux_state != UX_win && world->ux_state != UX_lose){
                 if(world->ux_state == UX_default){
                     if (is_key_down('A')) {
@@ -471,7 +518,7 @@ int entry(int argc, char **argv) {
             }
 
             input_axis = v2_normalize(input_axis);
-
+            get_player()->move_vec = input_axis;
 
         }
               
@@ -486,38 +533,51 @@ int entry(int argc, char **argv) {
                             push_z_layer(layer_entity);
                             render_sprite_entity(en);
                             break;
+                        case ARCH_monster:
+		                    set_world_space();
+                            push_z_layer(layer_entity);
+                            render_sprite_entity(en);
+                            
+                            //:ai movement
+                            //shuffle
+                            s32 order[] = {0,1,2,3};
+                            for(int k = 3; k > 0; k--){
+                                int j = get_random_int_in_range(0,k);
+                                int temp = order[k];
+                                order[k] = order[j];
+                                order[j] = temp;
+                            } 
+                            en->move_vec = v2(0,0);
+                            for(int j = 0; i < 4; i++){
+                                if(order[j] == 0){
+                                    en->move_vec = v2(0,1);
+                                }
+                                else if(order[j] == 1){
+                                    en->move_vec = v2(1,0);
+                                }
+                                else if(order[j] == 2){
+                                    en->move_vec = v2(0,-1);
+                                }
+                                else if(order[j] == 3){
+                                    en->move_vec = v2(-1,0);
+                                }
+                                log("trying %d", order[i]);
+                                
+                                if(en->move_vec.x != 0 && en->move_vec.y != 0){
+                                    break;
+                                }
+                            }
+                            en->move_vec = v2_normalize(en->move_vec);
+                            draw_line(en->pos, v2_add(en->pos, v2_mulf(en->move_vec, 100)), 1, v4(0.5, 0.5, 0, 1));
+                            //log("%f %f", en->move_vec.x, en->move_vec.y);
+                            break;
                         case ARCH_terrain:
 		                    set_world_space();
                             push_z_layer(layer_entity);
                             render_rect_entity(en);
-
-                            //:collision
-                            Vector2 next_pos = v2_add(get_player()->pos, v2_mulf(input_axis, 100.0 * delta_t));
-                            if(
-                                next_pos.x < en->pos.x + en->size.x &&
-                                next_pos.x + get_player()->size.x > en->pos.x &&
-                                next_pos.y < en->pos.y + en->size.y &&
-                                next_pos.y + get_player()->size.y > en->pos.y
-                            ){
-                                Vector2 next_pos_x = v2_add(get_player()->pos, v2_mulf(v2(input_axis.x, 0), 100.0 * delta_t));
-                                Vector2 next_pos_y = v2_add(get_player()->pos, v2_mulf(v2(0, input_axis.y), 100.0 * delta_t));
-                                if(
-                                    next_pos_x.x < en->pos.x + en->size.x &&
-                                    next_pos_x.x + get_player()->size.x > en->pos.x &&
-                                    next_pos_x.y < en->pos.y + en->size.y &&
-                                    next_pos_x.y + get_player()->size.y > en->pos.y
-                                ){
-                                    input_axis.x = 0;
-                                }
-                                if(
-                                    next_pos_y.x < en->pos.x + en->size.x &&
-                                    next_pos_y.x + get_player()->size.x > en->pos.x &&
-                                    next_pos_y.y < en->pos.y + en->size.y &&
-                                    next_pos_y.y + get_player()->size.y > en->pos.y
-                                ){
-                                    input_axis.y = 0;
-                                }
-                            }
+                            
+                            check_collision(get_player(), en, delta_t);
+                            check_collision(get_monster(), en, delta_t);
                             break;
                         default:
 		                    set_world_space();
@@ -530,7 +590,8 @@ int entry(int argc, char **argv) {
                    
             }
         }
-        get_player()->pos = v2_add(get_player()->pos, v2_mulf(input_axis, 100.0 * delta_t));
+        get_player()->pos = v2_add(get_player()->pos, v2_mulf(get_player()->move_vec, 100.0 * delta_t));
+        get_monster()->pos = v2_add(get_monster()->pos, v2_mulf(get_monster()->move_vec, 100.0 * delta_t));
 
         //:tile rendering
 		{
