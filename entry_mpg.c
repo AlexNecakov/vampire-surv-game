@@ -6,6 +6,7 @@ const float32 font_padding = (float32)font_height/10.0f;
 
 const float32 spriteSheetWidth = 240.0;
 const s32 tile_width = 20;
+const s32 wall_width = 1;
 
 const s32 maze_width = 16;
 const s32 maze_height = 16;
@@ -96,6 +97,7 @@ typedef struct Entity{
     Vector4 color;
     bool has_collision;
     Vector2 move_vec;
+    float move_speed;
 } Entity;
 
 Vector2 get_entity_midpoint(Entity* en){
@@ -104,15 +106,15 @@ Vector2 get_entity_midpoint(Entity* en){
 
 //:collision
 void check_collision(Entity* dynamic_en, Entity* static_en, float delta_t){
-    Vector2 next_pos = v2_add(dynamic_en->pos, v2_mulf(dynamic_en->move_vec, 100.0 * delta_t));
+    Vector2 next_pos = v2_add(dynamic_en->pos, v2_mulf(dynamic_en->move_vec, dynamic_en->move_speed * delta_t));
     if(
         next_pos.x < static_en->pos.x + static_en->size.x &&
         next_pos.x + dynamic_en->size.x > static_en->pos.x &&
         next_pos.y < static_en->pos.y + static_en->size.y &&
         next_pos.y + dynamic_en->size.y > static_en->pos.y
     ){
-        Vector2 next_pos_x = v2_add(dynamic_en->pos, v2_mulf(v2(dynamic_en->move_vec.x, 0), 100.0 * delta_t));
-        Vector2 next_pos_y = v2_add(dynamic_en->pos, v2_mulf(v2(0, dynamic_en->move_vec.y), 100.0 * delta_t));
+        Vector2 next_pos_x = v2_add(dynamic_en->pos, v2_mulf(v2(dynamic_en->move_vec.x, 0), dynamic_en->move_speed * delta_t));
+        Vector2 next_pos_y = v2_add(dynamic_en->pos, v2_mulf(v2(0, dynamic_en->move_vec.y), dynamic_en->move_speed * delta_t));
         if(
             next_pos_x.x < static_en->pos.x + static_en->size.x &&
             next_pos_x.x + dynamic_en->size.x > static_en->pos.x &&
@@ -186,21 +188,24 @@ void entity_destroy(Entity* entity){
 
 void setup_player(Entity* en) {
     en->arch = ARCH_player;
+    en->is_sprite = true;
     en->sprite_id = SPRITE_player;
     Sprite* sprite = get_sprite(en->sprite_id);
     en->size = get_sprite_size(sprite); 
-    en->is_sprite = true;
     en->has_collision = true;
     en->color = COLOR_WHITE;
+    en->move_speed = 100.0;
 }
 
 void setup_monster(Entity* en) {
     en->arch = ARCH_monster;
     en->is_sprite = true;
     en->sprite_id = SPRITE_monster;
-    en->is_sprite = true;
+    Sprite* sprite = get_sprite(en->sprite_id);
+    en->size = get_sprite_size(sprite); 
     en->has_collision = true;
     en->color = COLOR_WHITE;
+    en->move_speed = 25;
 }
 
 void setup_wall(Entity* en, Vector2 size) {
@@ -405,11 +410,11 @@ int entry(int argc, char **argv) {
     {	
         Entity* player_en = entity_create();
         setup_player(player_en);
-        player_en->pos = v2(5,5);
+        player_en->pos = v2(2,2);
 
         Entity* monster_en = entity_create();
         setup_monster(monster_en);
-        monster_en->pos = v2(1 + 3 * tile_width,1 + 3 * tile_width);
+        monster_en->pos = v2(2 + 3 * tile_width,2 + 3 * tile_width);
 
         //:init tiles
         for(int i = 0; i < maze_width; i++){
@@ -427,22 +432,22 @@ int entry(int argc, char **argv) {
                 float y_pos = j * tile_width;
                 if(world->tiles[i][j].walls[0]){
                     Entity* en = entity_create();
-                    setup_wall(en, v2(tile_width, 1));
+                    setup_wall(en, v2(tile_width, wall_width));
                     en->pos = v2(x_pos, y_pos + tile_width);
                 } 
                 if(world->tiles[i][j].walls[1]){
                     Entity* en = entity_create();
-                    setup_wall(en, v2(1, tile_width));
+                    setup_wall(en, v2(wall_width, tile_width));
                     en->pos = v2(x_pos + tile_width, y_pos);
                 } 
                 if(world->tiles[i][j].walls[2]){
                     Entity* en = entity_create();
-                    setup_wall(en, v2(tile_width, 1));
+                    setup_wall(en, v2(tile_width, wall_width));
                     en->pos = v2(x_pos, y_pos);
                 } 
                 if(world->tiles[i][j].walls[3]){
                     Entity* en = entity_create();
-                    setup_wall(en, v2(1, tile_width));
+                    setup_wall(en, v2(wall_width, tile_width));
                     en->pos = v2(x_pos, y_pos);
                 } 
                 //log("tile %d %d walls %d %d %d %d", i,j, world->tiles[i][j].walls[0], world->tiles[i][j].walls[1], world->tiles[i][j].walls[2], world->tiles[i][j].walls[3]);
@@ -521,7 +526,37 @@ int entry(int argc, char **argv) {
             get_player()->move_vec = input_axis;
 
         }
-              
+
+        //:ai movement
+        {
+            bool change_flag = false;
+            if(v2_length(get_monster()->move_vec) == 0){
+                change_flag = true;
+            }
+            int random_change = get_random_int_in_range(0,100);
+            if(random_change != 0){
+                //change_flag = true;
+            }
+
+            if(change_flag){
+                int dir = get_random_int_in_range(0,3);
+                if(dir == 0){
+                    get_monster()->move_vec = v2(0,1);
+                }
+                else if(dir == 1){
+                    get_monster()->move_vec = v2(1,0);
+                }
+                else if(dir == 2){
+                    get_monster()->move_vec = v2(0,-1);
+                }
+                else if(dir == 3){
+                    get_monster()->move_vec = v2(-1,0);
+                }
+            }
+
+            get_monster()->move_vec = v2_normalize(get_monster()->move_vec);
+        }
+
         //:entity loop 
         {
             for (int i = 0; i < MAX_ENTITY_COUNT; i++){
@@ -537,39 +572,6 @@ int entry(int argc, char **argv) {
 		                    set_world_space();
                             push_z_layer(layer_entity);
                             render_sprite_entity(en);
-                            
-                            //:ai movement
-                            //shuffle
-                            s32 order[] = {0,1,2,3};
-                            for(int k = 3; k > 0; k--){
-                                int j = get_random_int_in_range(0,k);
-                                int temp = order[k];
-                                order[k] = order[j];
-                                order[j] = temp;
-                            } 
-                            en->move_vec = v2(0,0);
-                            for(int j = 0; i < 4; i++){
-                                if(order[j] == 0){
-                                    en->move_vec = v2(0,1);
-                                }
-                                else if(order[j] == 1){
-                                    en->move_vec = v2(1,0);
-                                }
-                                else if(order[j] == 2){
-                                    en->move_vec = v2(0,-1);
-                                }
-                                else if(order[j] == 3){
-                                    en->move_vec = v2(-1,0);
-                                }
-                                log("trying %d", order[i]);
-                                
-                                if(en->move_vec.x != 0 && en->move_vec.y != 0){
-                                    break;
-                                }
-                            }
-                            en->move_vec = v2_normalize(en->move_vec);
-                            draw_line(en->pos, v2_add(en->pos, v2_mulf(en->move_vec, 100)), 1, v4(0.5, 0.5, 0, 1));
-                            //log("%f %f", en->move_vec.x, en->move_vec.y);
                             break;
                         case ARCH_terrain:
 		                    set_world_space();
@@ -590,8 +592,8 @@ int entry(int argc, char **argv) {
                    
             }
         }
-        get_player()->pos = v2_add(get_player()->pos, v2_mulf(get_player()->move_vec, 100.0 * delta_t));
-        get_monster()->pos = v2_add(get_monster()->pos, v2_mulf(get_monster()->move_vec, 100.0 * delta_t));
+        get_player()->pos = v2_add(get_player()->pos, v2_mulf(get_player()->move_vec, get_player()->move_speed * delta_t));
+        get_monster()->pos = v2_add(get_monster()->pos, v2_mulf(get_monster()->move_vec, get_monster()->move_speed * delta_t));
 
         //:tile rendering
 		{
