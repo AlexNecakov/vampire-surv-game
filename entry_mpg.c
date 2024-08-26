@@ -493,19 +493,24 @@ int entry(int argc, char **argv) {
                                 next_pos.y < en->pos.y + en->size.y &&
                                 next_pos.y + get_player()->size.y > en->pos.y
                             ){
-                                input_axis = v2(0,0);
-                                if(next_pos.x + (get_player()->size.x/2.0) < en->pos.x + (en->size.x/2.0)){
-                                    //next_pos.x++;
+                                Vector2 next_pos_x = v2_add(get_player()->pos, v2_mulf(v2(input_axis.x, 0), 100.0 * delta_t));
+                                Vector2 next_pos_y = v2_add(get_player()->pos, v2_mulf(v2(0, input_axis.y), 100.0 * delta_t));
+                                if(
+                                    next_pos_x.x < en->pos.x + en->size.x &&
+                                    next_pos_x.x + get_player()->size.x > en->pos.x &&
+                                    next_pos_x.y < en->pos.y + en->size.y &&
+                                    next_pos_x.y + get_player()->size.y > en->pos.y
+                                ){
+                                    input_axis.x = 0;
                                 }
-                                if(next_pos.x + (get_player()->size.x/2.0) > en->pos.x + (en->size.x/2.0)){
-                                    //next_pos.x--;
-                                } 
-                                if(next_pos.y + (get_player()->size.y/2.0) > en->pos.y + (en->size.y/2.0)){
-                                    //next_pos.y++;
+                                if(
+                                    next_pos_y.x < en->pos.x + en->size.x &&
+                                    next_pos_y.x + get_player()->size.x > en->pos.x &&
+                                    next_pos_y.y < en->pos.y + en->size.y &&
+                                    next_pos_y.y + get_player()->size.y > en->pos.y
+                                ){
+                                    input_axis.y = 0;
                                 }
-                                if(next_pos.y + (get_player()->size.y/2.0) < en->pos.y + (en->size.y/2.0)){
-                                    //next_pos.y--;
-                                } 
                             }
                             break;
                         default:
