@@ -461,7 +461,7 @@ void dfs(Vector2 current_tile){
 //:entry
 int entry(int argc, char **argv) {
 	
-	window.title = STR("Secret Identity");
+	window.title = STR("Light Game");
 	window.scaled_width = 1280; // We need to set the scaled size if we want to handle system scaling (DPI)
 	window.scaled_height = 720; 
     window.x = 200;
