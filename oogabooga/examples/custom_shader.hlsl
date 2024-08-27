@@ -14,7 +14,7 @@ cbuffer some_cbuffer : register(b0) {
 
 float4 get_light_contribution(PS_INPUT input) {
 
-	const float light_distance = 500; // We could pass this with userdata
+	const float light_distance = 200; // We could pass this with userdata
 
 	float2 vertex_pos = input.position_screen.xy;  // In pixels
     vertex_pos.y = window_size.y-vertex_pos.y; // For some reason d3d11 inverts the Y here so we need to revert it

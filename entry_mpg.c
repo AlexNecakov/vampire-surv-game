@@ -26,6 +26,11 @@ Vector4 bg_box_col = {0, 0, 1.0, 0.9};
 float screen_width = 240.0;
 float screen_height = 135.0;
 
+typedef struct My_Cbuffer {
+	Vector2 pos; 
+	Vector2 window_size; // We only use this to revert the Y in the shader because for some reason d3d11 inverts it.
+} My_Cbuffer;
+
 //:math
 inline float v2_dist(Vector2 a, Vector2 b) {
     return v2_length(v2_sub(a, b));
@@ -47,6 +52,7 @@ typedef enum SpriteID {
     SPRITE_nil,
     SPRITE_player,
     SPRITE_monster,
+    SPRITE_sword,
     SPRITE_MAX,
 } SpriteID;
 
@@ -72,6 +78,7 @@ Vector2 get_sprite_size(Sprite* sprite) {
 typedef enum UXState {
 	UX_nil,
 	UX_default,
+	UX_sword,
     UX_win,
     UX_lose,
 } UXState;
@@ -82,6 +89,7 @@ typedef enum EntityArchetype{
     ARCH_player,
     ARCH_monster,
     ARCH_terrain,
+    ARCH_powerup,
     ARCH_MAX,
 } EntityArchetype;
 
@@ -193,6 +201,7 @@ typedef struct WorldFrame {
 	Matrix4 world_view;
 	Entity* player;
 	Entity* monster;
+    Entity* sword;
 } WorldFrame;
 WorldFrame world_frame;
 
@@ -202,6 +211,10 @@ Entity* get_player() {
 
 Entity* get_monster() {
 	return world_frame.monster;
+}
+
+Entity* get_sword() {
+	return world_frame.sword;
 }
 
 Entity* entity_create() {
@@ -253,6 +266,16 @@ void setup_wall(Entity* en, Vector2 size) {
     en->size = size;
 }
 
+void setup_sword(Entity* en) {
+    en->arch = ARCH_powerup;
+    en->is_sprite = true;
+    en->sprite_id = SPRITE_sword;
+    Sprite* sprite = get_sprite(en->sprite_id);
+    en->size = get_sprite_size(sprite); 
+    en->has_collision = true;
+    en->color = COLOR_WHITE;
+}
+
 void render_sprite_entity(Entity* en){
     Sprite* sprite = get_sprite(en->sprite_id);
     Matrix4 xform = m4_scalar(1.0);
@@ -281,9 +304,21 @@ void set_world_space() {
 	draw_frame.camera_xform = world_frame.world_view;
 }
 
-Vector2 world_to_screen(Vector2 world_pos){
-    Vector2 screen_pos;
-    return screen_pos;
+Vector2 world_to_screen(Vector2 p) {
+    Vector4 in_cam_space  = m4_transform(draw_frame.camera_xform, v4(p.x, p.y, 0.0, 1.0));
+    Vector4 in_clip_space = m4_transform(draw_frame.projection, in_cam_space);
+    
+    Vector4 ndc = {
+        .x = in_clip_space.x / in_clip_space.w,
+        .y = in_clip_space.y / in_clip_space.w,
+        .z = in_clip_space.z / in_clip_space.w,
+        .w = in_clip_space.w
+    };
+    
+    return v2(
+        (ndc.x + 1.0f) * 0.5f * (f32)window.width,
+        (ndc.y + 1.0f) * 0.5f * (f32)window.height
+    );
 }
 Vector2 screen_to_world(Vector2 screen_pos) {
 	Matrix4 proj = draw_frame.projection;
@@ -417,11 +452,26 @@ int entry(int argc, char **argv) {
 	window.scaled_height = 720; 
     window.x = 200;
     window.y = 200;
-	window.clear_color = v4(0, 0.3, 0.7, 1);
+	window.clear_color = hex_to_rgba(0x000000ff);
     float32 aspectRatio = (float32)window.width/(float32)window.height; 
     float32 zoom = window.width/spriteSheetWidth;
     float y_pos = (screen_height/3.0f) - 9.0f;
     
+    string source;
+	bool ok = os_read_entire_file("oogabooga/examples/custom_shader.hlsl", &source, get_heap_allocator());
+	assert(ok, "Could not read oogabooga/examples/custom_shader.hlsl");
+	
+	// This is slow and needs to recompile the shader. However, it should probably only happen once (or each hot reload)
+	// If it fails, it will return false and return to whatever shader it was before.
+	shader_recompile_with_extension(source, sizeof(My_Cbuffer));
+	
+	dealloc_string(get_heap_allocator(), source);
+	
+	// This memory needs to stay alive throughout the frame because we pass the pointer to it in draw_frame.cbuffer.
+	// If this memory is invalidated before gfx_update after setting draw_frame.cbuffer, then gfx_update will copy
+	// memory from an invalid address.
+	My_Cbuffer cbuffer;
+
     world = alloc(get_heap_allocator(), sizeof(World));
     memset(world, 0, sizeof(World));
     world->ux_state = UX_default;
@@ -433,6 +483,7 @@ int entry(int argc, char **argv) {
     sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\undefined.png"), get_heap_allocator()) };
     sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\player.png"), get_heap_allocator()) };
     sprites[SPRITE_monster] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\monster.png"), get_heap_allocator()) };
+    sprites[SPRITE_sword] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\sword.png"), get_heap_allocator()) };
 	
     // @ship debug this off
 	{
@@ -451,6 +502,10 @@ int entry(int argc, char **argv) {
         Entity* monster_en = entity_create();
         setup_monster(monster_en);
         monster_en->pos = v2(2 + 3 * tile_width,2 + 4 * tile_width);
+
+        Entity* sword_en = entity_create();
+        setup_sword(sword_en);
+        sword_en->pos = v2(2 + 1 * tile_width,2 + 1 * tile_width);
 
         //:init tiles
         for(int i = 0; i < maze_width; i++){
@@ -507,6 +562,7 @@ int entry(int argc, char **argv) {
 		last_time = now;	
         os_update(); 
 	
+		
         // find player 
 		for (int i = 0; i < MAX_ENTITY_COUNT; i++) {
 			Entity* en = &world->entities[i];
@@ -516,8 +572,18 @@ int entry(int argc, char **argv) {
 			if (en->is_valid && en->arch == ARCH_monster) {
 				world_frame.monster = en;
 			}
+			if (en->is_valid && en->arch == ARCH_powerup) {
+				world_frame.sword = en;
+			}
 		}
-        
+       
+        //:shader
+        {
+            cbuffer.pos = v2(input_frame.mouse_x, input_frame.mouse_y);
+            cbuffer.window_size = v2(window.width, window.height);
+            draw_frame.cbuffer = &cbuffer;
+            log("mouse %f %f player %f %f", input_frame.mouse_x, input_frame.mouse_y, world_to_screen(get_player()->pos).x, world_to_screen(get_player()->pos).y);
+        }
 
         //:frame updating
         draw_frame.enable_z_sorting = true;
@@ -542,19 +608,17 @@ int entry(int argc, char **argv) {
              
             Vector2 input_axis = v2(0, 0);
             if(world->ux_state != UX_win && world->ux_state != UX_lose){
-                if(world->ux_state == UX_default){
-                    if (is_key_down('A')) {
-                        input_axis.x -= 1.0;
-                    }
-                    if (is_key_down('D')) {
-                        input_axis.x += 1.0;
-                    }
-                    if (is_key_down('S')) {
-                        input_axis.y -= 1.0;
-                    }
-                    if (is_key_down('W')) {
-                        input_axis.y += 1.0;
-                    }
+                if (is_key_down('A')) {
+                    input_axis.x -= 1.0;
+                }
+                if (is_key_down('D')) {
+                    input_axis.x += 1.0;
+                }
+                if (is_key_down('S')) {
+                    input_axis.y -= 1.0;
+                }
+                if (is_key_down('W')) {
+                    input_axis.y += 1.0;
                 }
             }
 
@@ -623,7 +687,7 @@ int entry(int argc, char **argv) {
                     Vector2 wall_vec = v2(min_dist, 0);  
                     wall_vec = v2_rotate_point_around_pivot(wall_vec, v2(0,0), to_radians(i * 90));
                     wall_vec = v2_add(get_monster()->pos, wall_vec);
-                    draw_line(get_monster()->pos, wall_vec, 1, v4(0,1,0,1));
+                    //draw_line(get_monster()->pos, wall_vec, 1, v4(0,1,0,1));
                     pop_z_layer();
                 }
                 
@@ -659,13 +723,30 @@ int entry(int argc, char **argv) {
                             push_z_layer(layer_entity);
                             render_sprite_entity(en);
                             if(
-                                    get_player()->pos.x < get_monster()->pos.x + get_player()->size.x &&
-                                    get_player()->pos.x + get_player()->size.x > get_monster()->pos.x &&
-                                    get_player()->pos.y < get_monster()->pos.y + get_player()->size.y &&
-                                    get_player()->pos.y + get_player()->size.y > get_monster()->pos.y
-                                ){
-                                   world->ux_state = UX_lose; 
+                                get_player()->pos.x < get_sword()->pos.x + get_player()->size.x &&
+                                get_player()->pos.x + get_player()->size.x > get_sword()->pos.x &&
+                                get_player()->pos.y < get_sword()->pos.y + get_player()->size.y &&
+                                get_player()->pos.y + get_player()->size.y > get_sword()->pos.y
+                            ){
+                                if(world->ux_state == UX_default){
+                                    world->ux_state = UX_sword; 
+                                    get_sword()->color = v4(0,0,0,0);
                                 }
+                            }
+                            if(
+                                get_player()->pos.x < get_monster()->pos.x + get_player()->size.x &&
+                                get_player()->pos.x + get_player()->size.x > get_monster()->pos.x &&
+                                get_player()->pos.y < get_monster()->pos.y + get_player()->size.y &&
+                                get_player()->pos.y + get_player()->size.y > get_monster()->pos.y
+                            ){
+                                if(world->ux_state == UX_sword || world->ux_state == UX_win){
+                                    world->ux_state = UX_win; 
+                                    get_monster()->color = v4(0,0,0,0);
+                                }
+                                else{
+                                    world->ux_state = UX_lose;
+                                }
+                            }
                             break;
                         case ARCH_monster:
 		                    set_world_space();
