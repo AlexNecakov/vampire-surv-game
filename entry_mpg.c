@@ -471,9 +471,10 @@ int entry(int argc, char **argv) {
     float32 zoom = window.width/spriteSheetWidth;
     float y_pos = (screen_height/3.0f) - 9.0f;
     
+	seed_for_random = rdtsc();
     string source;
-	bool ok = os_read_entire_file("oogabooga/examples/custom_shader.hlsl", &source, get_heap_allocator());
-	assert(ok, "Could not read oogabooga/examples/custom_shader.hlsl");
+	bool ok = os_read_entire_file("res/shader/custom_shader.hlsl", &source, get_heap_allocator());
+	assert(ok, "Could not read res/shader/custom_shader.hlsl");
 	
 	// This is slow and needs to recompile the shader. However, it should probably only happen once (or each hot reload)
 	// If it fails, it will return false and return to whatever shader it was before.
@@ -511,15 +512,15 @@ int entry(int argc, char **argv) {
     {	
         Entity* player_en = entity_create();
         setup_player(player_en);
-        player_en->pos = v2(2 + get_random_int_in_range(0,maze_width) * tile_width,2 + get_random_int_in_range(0,maze_height) * tile_width);
+        player_en->pos = v2(2 + get_random_int_in_range(0,maze_width-1) * tile_width,2 + get_random_int_in_range(0,maze_height-1) * tile_width);
 
         Entity* monster_en = entity_create();
         setup_monster(monster_en);
-        monster_en->pos = v2(2 + get_random_int_in_range(0,maze_width) * tile_width,2 + get_random_int_in_range(0,maze_height) * tile_width);
+        monster_en->pos = v2(2 + get_random_int_in_range(0,maze_width-1) * tile_width,2 + get_random_int_in_range(0,maze_height-1) * tile_width);
 
         Entity* sword_en = entity_create();
         setup_sword(sword_en);
-        sword_en->pos = v2(2 + get_random_int_in_range(0,maze_width) * tile_width,2 + get_random_int_in_range(0,maze_height) * tile_width);
+        sword_en->pos = v2(2 + get_random_int_in_range(0,maze_width-1) * tile_width,2 + get_random_int_in_range(0,maze_height-1) * tile_width);
 
         //:init tiles
         for(int i = 0; i < maze_width; i++){
@@ -857,7 +858,7 @@ int entry(int argc, char **argv) {
                     frame_count = 0;
                     seconds_counter = 0.0;
                 }
-                string text = STR("fps: %i time: %f");
+                string text = STR("fps: %i time: %.2f");
                 text = sprint(temp_allocator, text, last_fps, world->timer);
                 set_screen_space();
                 push_z_layer(layer_text);
