@@ -5,7 +5,7 @@ const u32 font_height = 64;
 const float32 font_padding = (float32)font_height/10.0f;
 
 const float32 spriteSheetWidth = 240.0;
-const s32 tile_width = 20;
+const s32 tile_width = 19;
 const s32 wall_width = 1;
 
 const s32 maze_width = 16;
@@ -14,9 +14,8 @@ const s32 maze_height = 16;
 const s32 layer_stage_bg = 0;
 const s32 layer_stage_fg = 5;
 const s32 layer_world = 10;
-const s32 layer_entity = 20;
-const s32 layer_costume = 25;
 const s32 layer_view = 15;
+const s32 layer_entity = 20;
 const s32 layer_ui_bg = 30;
 const s32 layer_ui_fg = 35;
 const s32 layer_text = 40;
@@ -132,6 +131,43 @@ void check_collision(Entity* dynamic_en, Entity* static_en, float delta_t){
             dynamic_en->move_vec.y = 0;
         }
     }
+}
+
+bool check_ray_collision(Vector2 ray, Entity* dynamic_en, Entity* static_en){
+    bool collision_detected = false;
+    if(
+        dynamic_en->pos.x < static_en->pos.x + static_en->size.x &&
+        dynamic_en->pos.x + dynamic_en->size.x + ray.x > static_en->pos.x &&
+        dynamic_en->pos.y < static_en->pos.y + static_en->size.y &&
+        dynamic_en->pos.y + dynamic_en->size.y + ray.y > static_en->pos.y
+    ){
+        collision_detected = true;
+    }
+    else if(
+        ray.x < static_en->pos.x + static_en->size.x &&
+        dynamic_en->pos.x + dynamic_en->size.x + ray.x > static_en->pos.x &&
+        dynamic_en->pos.y < static_en->pos.y + static_en->size.y &&
+        dynamic_en->pos.y + dynamic_en->size.y + ray.y > static_en->pos.y
+    ){
+        collision_detected = true;
+    }
+    else if(
+        ray.x < static_en->pos.x + static_en->size.x &&
+        dynamic_en->pos.x + dynamic_en->size.x + ray.x > static_en->pos.x &&
+        ray.y < static_en->pos.y + static_en->size.y &&
+        dynamic_en->pos.y + dynamic_en->size.y + ray.y > static_en->pos.y
+    ){
+        collision_detected = true;
+    }
+    else if(
+        dynamic_en->pos.x < static_en->pos.x + static_en->size.x &&
+        dynamic_en->pos.x + dynamic_en->size.x + ray.x > static_en->pos.x &&
+        ray.y < static_en->pos.y + static_en->size.y &&
+        dynamic_en->pos.y + dynamic_en->size.y + ray.y > static_en->pos.y
+    ){
+        collision_detected = true;
+    }
+    return collision_detected;
 }
 
 //:tile
@@ -414,7 +450,7 @@ int entry(int argc, char **argv) {
 
         Entity* monster_en = entity_create();
         setup_monster(monster_en);
-        monster_en->pos = v2(2 + 3 * tile_width,2 + 3 * tile_width);
+        monster_en->pos = v2(2 + 3 * tile_width,2 + 4 * tile_width);
 
         //:init tiles
         for(int i = 0; i < maze_width; i++){
@@ -529,29 +565,84 @@ int entry(int argc, char **argv) {
 
         //:ai movement
         {
+            Vector2 current_vec = get_monster()->move_vec;
             bool change_flag = false;
+            
+            //change dir if stopped or collided
             if(v2_length(get_monster()->move_vec) == 0){
+                get_monster()->move_vec = v2(1,0); 
                 change_flag = true;
             }
-            int random_change = get_random_int_in_range(0,100);
-            if(random_change != 0){
-                //change_flag = true;
+
+            Vector2 move_options[4];
+            //check for open paths
+            for(int i = 0; i < 4; i++){
+                Vector2 check_vec = v2(tile_width * 5, 0);  
+                check_vec = v2_rotate_point_around_pivot(check_vec, v2(0,0), to_radians(i * 90));
+                check_vec = v2_add(get_monster()->pos, check_vec);
+                Vector4 col = v4(0,0,0,1);
+                if(i == 0){
+                    col = v4(1,0,0,1);
+                }
+                else if(i == 1){
+                    col = v4(0,1,0,1);
+                }
+                else if(i == 2){
+                    col = v4(0,0,1,1);
+                }
+                else if(i == 3){
+                    col = v4(1,1,1,1);
+                }
+
+                float min_dist = tile_width * 100;
+                int closest_wall = 0;
+
+                for(int j = 0; j < MAX_ENTITY_COUNT; j++){
+                    Entity* en = &world->entities[j];
+                    if(en->is_valid && en->arch == ARCH_terrain){
+                        bool collision_detected = check_ray_collision(check_vec, get_monster(), en);
+                        if(collision_detected){
+                            float dist = fabsf(v2_length(v2_sub(en->pos, get_monster()->pos)));
+                            float temp = fabsf(v2_length(v2_sub(get_entity_midpoint(en), get_monster()->pos)));
+                            dist = (dist < temp)?dist:temp;
+                            temp = fabsf(v2_length(v2_sub(v2_add(en->pos, en->size), get_monster()->pos)));
+                            dist = (dist < temp)?dist:temp;
+                            //log("detected collision in dir %f %f dist %f ent %d", check_vec.x, check_vec.y, dist, j);
+                            if(dist < min_dist){
+                                min_dist = dist;
+                                closest_wall = j;
+                            }
+                        }
+                    }
+                }
+                
+                if(world->debug_render){
+                    //log("dir %f %f min_dist %f wall id %d", check_vec.x, check_vec.y, min_dist, closest_wall);
+                    set_world_space();
+                    push_z_layer(layer_cursor);
+                    Vector2 wall_vec = v2(min_dist, 0);  
+                    wall_vec = v2_rotate_point_around_pivot(wall_vec, v2(0,0), to_radians(i * 90));
+                    wall_vec = v2_add(get_monster()->pos, wall_vec);
+                    draw_line(get_monster()->pos, wall_vec, 1, v4(0,1,0,1));
+                    pop_z_layer();
+                }
+                
+                if(min_dist > tile_width){
+                    //change_flag = true;
+               }
             }
 
             if(change_flag){
-                int dir = get_random_int_in_range(0,3);
+                int dir = get_random_int_in_range(0,2);
                 if(dir == 0){
-                    get_monster()->move_vec = v2(0,1);
+                    get_monster()->move_vec = v2_rotate_point_around_pivot(get_monster()->move_vec, v2(0,0), to_radians(90)); 
                 }
                 else if(dir == 1){
-                    get_monster()->move_vec = v2(1,0);
+                    get_monster()->move_vec = v2_rotate_point_around_pivot(get_monster()->move_vec, v2(0,0), to_radians(270)); 
                 }
-                else if(dir == 2){
-                    get_monster()->move_vec = v2(0,-1);
-                }
-                else if(dir == 3){
-                    get_monster()->move_vec = v2(-1,0);
-                }
+            }
+            else{
+                get_monster()->move_vec = current_vec;
             }
 
             get_monster()->move_vec = v2_normalize(get_monster()->move_vec);
