@@ -190,6 +190,7 @@ typedef struct World{
 	Entity entities[MAX_ENTITY_COUNT];
 	UXState ux_state;
     bool debug_render;
+    float64 timer;
     Tile tiles[maze_width][maze_height];
     Gfx_Font* font;
 } World;
@@ -320,6 +321,19 @@ Vector2 world_to_screen(Vector2 p) {
         (ndc.y + 1.0f) * 0.5f * (f32)window.height
     );
 }
+
+Vector2 world_size_to_screen_size(Vector2 s) {
+    Vector2 origin = v2(0, 0);
+    
+    Vector2 screen_origin = world_to_screen(origin);
+    Vector2 screen_size_point = world_to_screen(s);
+    
+    return v2(
+        screen_size_point.x - screen_origin.x,
+        screen_size_point.y - screen_origin.y
+    );
+}
+
 Vector2 screen_to_world(Vector2 screen_pos) {
 	Matrix4 proj = draw_frame.projection;
 	Matrix4 view = draw_frame.camera_xform;
@@ -497,15 +511,15 @@ int entry(int argc, char **argv) {
     {	
         Entity* player_en = entity_create();
         setup_player(player_en);
-        player_en->pos = v2(2,2);
+        player_en->pos = v2(2 + get_random_int_in_range(0,maze_width) * tile_width,2 + get_random_int_in_range(0,maze_height) * tile_width);
 
         Entity* monster_en = entity_create();
         setup_monster(monster_en);
-        monster_en->pos = v2(2 + 3 * tile_width,2 + 4 * tile_width);
+        monster_en->pos = v2(2 + get_random_int_in_range(0,maze_width) * tile_width,2 + get_random_int_in_range(0,maze_height) * tile_width);
 
         Entity* sword_en = entity_create();
         setup_sword(sword_en);
-        sword_en->pos = v2(2 + 1 * tile_width,2 + 1 * tile_width);
+        sword_en->pos = v2(2 + get_random_int_in_range(0,maze_width) * tile_width,2 + get_random_int_in_range(0,maze_height) * tile_width);
 
         //:init tiles
         for(int i = 0; i < maze_width; i++){
@@ -551,6 +565,8 @@ int entry(int argc, char **argv) {
     s32 frame_count = 0;
     s32 last_fps = 0;
     float64 last_time = os_get_elapsed_seconds();
+    float64 start_time = os_get_elapsed_seconds();
+    world->timer = 0;
     Vector2 camera_pos = v2(0,0);
 
     //:loop
@@ -582,7 +598,7 @@ int entry(int argc, char **argv) {
             cbuffer.pos = v2(input_frame.mouse_x, input_frame.mouse_y);
             cbuffer.window_size = v2(window.width, window.height);
             draw_frame.cbuffer = &cbuffer;
-            log("mouse %f %f player %f %f", input_frame.mouse_x, input_frame.mouse_y, world_to_screen(get_player()->pos).x, world_to_screen(get_player()->pos).y);
+            //log("mouse %f %f player %f %f", input_frame.mouse_x, input_frame.mouse_y, world_size_to_screen_size(get_player()->pos).x, world_size_to_screen_size(get_player()->pos).y);
         }
 
         //:frame updating
@@ -828,23 +844,26 @@ int entry(int argc, char **argv) {
             draw_text_xform(world->font, text, font_height, xform, v2(0.5, 0.5), COLOR_RED);
         }
 
-        //:fps
+        //:timer
         if(world->debug_render){
             {
                 seconds_counter += delta_t;
+                if(world->ux_state != UX_win && world->ux_state != UX_lose){
+                    world->timer += delta_t;
+                }
                 frame_count+=1;
                 if(seconds_counter > 1.0){
                     last_fps = frame_count;
                     frame_count = 0;
                     seconds_counter = 0.0;
                 }
-                string text = STR("fps: %i");
-                text = sprint(temp_allocator, text, last_fps);
+                string text = STR("fps: %i time: %f");
+                text = sprint(temp_allocator, text, last_fps, world->timer);
                 set_screen_space();
                 push_z_layer(layer_text);
                 Matrix4 xform = m4_scalar(1.0);
                 xform = m4_translate(xform, v3(0,screen_height - (font_height * 0.1), 0));
-                draw_text_xform(world->font, text, font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
+                draw_text_xform(world->font, text, font_height, xform, v2(0.1, 0.1), COLOR_RED);
             }
         }
 
