@@ -658,6 +658,14 @@ int entry(int argc, char **argv) {
 		                    set_world_space();
                             push_z_layer(layer_entity);
                             render_sprite_entity(en);
+                            if(
+                                    get_player()->pos.x < get_monster()->pos.x + get_player()->size.x &&
+                                    get_player()->pos.x + get_player()->size.x > get_monster()->pos.x &&
+                                    get_player()->pos.y < get_monster()->pos.y + get_player()->size.y &&
+                                    get_player()->pos.y + get_player()->size.y > get_monster()->pos.y
+                                ){
+                                   world->ux_state = UX_lose; 
+                                }
                             break;
                         case ARCH_monster:
 		                    set_world_space();
