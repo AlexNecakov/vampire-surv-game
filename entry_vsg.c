@@ -26,11 +26,6 @@ Vector4 bg_box_col = {0, 0, 1.0, 0.9};
 float screen_width = 240.0;
 float screen_height = 135.0;
 
-typedef struct My_Cbuffer {
-	Vector2 pos; 
-	Vector2 window_size; // We only use this to revert the Y in the shader because for some reason d3d11 inverts it.
-} My_Cbuffer;
-
 //:math
 inline float v2_dist(Vector2 a, Vector2 b) {
     return v2_length(v2_sub(a, b));
@@ -52,7 +47,6 @@ typedef enum SpriteID {
     SPRITE_nil,
     SPRITE_player,
     SPRITE_monster,
-    SPRITE_sword,
     SPRITE_MAX,
 } SpriteID;
 
@@ -78,7 +72,6 @@ Vector2 get_sprite_size(Sprite* sprite) {
 typedef enum UXState {
 	UX_nil,
 	UX_default,
-	UX_sword,
     UX_win,
     UX_lose,
 } UXState;
@@ -191,7 +184,6 @@ typedef struct World{
 	UXState ux_state;
     bool debug_render;
     float64 timer;
-    Tile tiles[maze_width][maze_height];
     Gfx_Font* font;
 } World;
 World* world = 0;
@@ -202,7 +194,6 @@ typedef struct WorldFrame {
 	Matrix4 world_view;
 	Entity* player;
 	Entity* monster;
-    Entity* sword;
 } WorldFrame;
 WorldFrame world_frame;
 
@@ -212,10 +203,6 @@ Entity* get_player() {
 
 Entity* get_monster() {
 	return world_frame.monster;
-}
-
-Entity* get_sword() {
-	return world_frame.sword;
 }
 
 Entity* entity_create() {
@@ -265,16 +252,6 @@ void setup_wall(Entity* en, Vector2 size) {
     en->has_collision = true;
     en->color = COLOR_WHITE;
     en->size = size;
-}
-
-void setup_sword(Entity* en) {
-    en->arch = ARCH_powerup;
-    en->is_sprite = true;
-    en->sprite_id = SPRITE_sword;
-    Sprite* sprite = get_sprite(en->sprite_id);
-    en->size = get_sprite_size(sprite); 
-    en->has_collision = true;
-    en->color = COLOR_WHITE;
 }
 
 void render_sprite_entity(Entity* en){
@@ -416,48 +393,6 @@ void animate_v2_to_target(Vector2* value, Vector2 target, float delta_t, float r
 	animate_f32_to_target(&(value->y), target.y, delta_t, rate);
 }
 
-void dfs(Vector2 current_tile){
-    world->tiles[(int)current_tile.x][(int)current_tile.y].visited = true;
-
-    //shuffle
-    s32 order[] = {0,1,2,3};
-    for(int i = 3; i > 0; i--){
-        int j = get_random_int_in_range(0,i);
-        int temp = order[i];
-        order[i] = order[j];
-        order[j] = temp;
-    } 
-    //log("order %d %d %d %d", order[0], order[1], order[2], order[3]);
-
-    for(int i = 0; i < 4; i++){
-        Vector2 next_tile = current_tile;
-        if(order[i] == 0){
-           next_tile.y = current_tile.y + 1; 
-        }
-        else if(order[i] == 1){
-           next_tile.x = current_tile.x + 1; 
-        }
-        else if(order[i] == 2){
-           next_tile.y = current_tile.y - 1; 
-        }
-        else if(order[i] == 3){
-           next_tile.x = current_tile.x - 1; 
-        }
-        //log("current %d %d, next %d %d", (int)current_tile.x, (int)current_tile.y, (int)next_tile.x, (int)next_tile.y);
-        //check oob
-        if(next_tile.x < 0 || next_tile.y < 0){
-        }
-        else if(next_tile.x > maze_width-1 || next_tile.y > maze_width-1){
-        }
-        else if(world->tiles[(int)next_tile.x][(int)next_tile.y].visited == false){
-            world->tiles[(int)current_tile.x][(int)current_tile.y].walls[order[i]] = false;
-            world->tiles[(int)next_tile.x][(int)next_tile.y].walls[(order[i]+2)%4] = false;
-            //log("destroyed current wall %d next wall %d", order[i], (order[i]+2)%4);
-            dfs(next_tile); 
-        }
-    }
-}
-
 //:entry
 int entry(int argc, char **argv) {
 	
@@ -466,27 +401,13 @@ int entry(int argc, char **argv) {
 	window.scaled_height = 720; 
     window.x = 200;
     window.y = 200;
-	window.clear_color = hex_to_rgba(0x000000ff);
+	window.clear_color = hex_to_rgba(0x7fff94ff);
     float32 aspectRatio = (float32)window.width/(float32)window.height; 
     float32 zoom = window.width/spriteSheetWidth;
     float y_pos = (screen_height/3.0f) - 9.0f;
     
 	seed_for_random = rdtsc();
-    string source;
-	bool ok = os_read_entire_file("res/shader/custom_shader.hlsl", &source, get_heap_allocator());
-	assert(ok, "Could not read res/shader/custom_shader.hlsl");
 	
-	// This is slow and needs to recompile the shader. However, it should probably only happen once (or each hot reload)
-	// If it fails, it will return false and return to whatever shader it was before.
-	shader_recompile_with_extension(source, sizeof(My_Cbuffer));
-	
-	dealloc_string(get_heap_allocator(), source);
-	
-	// This memory needs to stay alive throughout the frame because we pass the pointer to it in draw_frame.cbuffer.
-	// If this memory is invalidated before gfx_update after setting draw_frame.cbuffer, then gfx_update will copy
-	// memory from an invalid address.
-	My_Cbuffer cbuffer;
-
     world = alloc(get_heap_allocator(), sizeof(World));
     memset(world, 0, sizeof(World));
     world->ux_state = UX_default;
@@ -498,7 +419,6 @@ int entry(int argc, char **argv) {
     sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\undefined.png"), get_heap_allocator()) };
     sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\player.png"), get_heap_allocator()) };
     sprites[SPRITE_monster] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\monster.png"), get_heap_allocator()) };
-    sprites[SPRITE_sword] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\sword.png"), get_heap_allocator()) };
 	
     // @ship debug this off
 	{
@@ -517,48 +437,6 @@ int entry(int argc, char **argv) {
         Entity* monster_en = entity_create();
         setup_monster(monster_en);
         monster_en->pos = v2(2 + get_random_int_in_range(0,maze_width-1) * tile_width,2 + get_random_int_in_range(0,maze_height-1) * tile_width);
-
-        Entity* sword_en = entity_create();
-        setup_sword(sword_en);
-        sword_en->pos = v2(2 + get_random_int_in_range(0,maze_width-1) * tile_width,2 + get_random_int_in_range(0,maze_height-1) * tile_width);
-
-        //:init tiles
-        for(int i = 0; i < maze_width; i++){
-            for(int j = 0; j < maze_height; j++){
-                for(int k = 0; k < 4; k++){
-                    world->tiles[i][j].walls[k] = true;
-                }
-            }
-        }        
-        Vector2 current_pos = v2(0,0);
-        dfs(current_pos);
-        for(int i = 0; i < maze_width; i++){
-            for(int j = 0; j < maze_height; j++){
-                float x_pos = i * tile_width;
-                float y_pos = j * tile_width;
-                if(world->tiles[i][j].walls[0]){
-                    Entity* en = entity_create();
-                    setup_wall(en, v2(tile_width, wall_width));
-                    en->pos = v2(x_pos, y_pos + tile_width);
-                } 
-                if(world->tiles[i][j].walls[1]){
-                    Entity* en = entity_create();
-                    setup_wall(en, v2(wall_width, tile_width));
-                    en->pos = v2(x_pos + tile_width, y_pos);
-                } 
-                if(world->tiles[i][j].walls[2]){
-                    Entity* en = entity_create();
-                    setup_wall(en, v2(tile_width, wall_width));
-                    en->pos = v2(x_pos, y_pos);
-                } 
-                if(world->tiles[i][j].walls[3]){
-                    Entity* en = entity_create();
-                    setup_wall(en, v2(wall_width, tile_width));
-                    en->pos = v2(x_pos, y_pos);
-                } 
-                //log("tile %d %d walls %d %d %d %d", i,j, world->tiles[i][j].walls[0], world->tiles[i][j].walls[1], world->tiles[i][j].walls[2], world->tiles[i][j].walls[3]);
-            }
-        }        
 
     }
 
@@ -589,19 +467,8 @@ int entry(int argc, char **argv) {
 			if (en->is_valid && en->arch == ARCH_monster) {
 				world_frame.monster = en;
 			}
-			if (en->is_valid && en->arch == ARCH_powerup) {
-				world_frame.sword = en;
-			}
 		}
        
-        //:shader
-        {
-            cbuffer.pos = v2(input_frame.mouse_x, input_frame.mouse_y);
-            cbuffer.window_size = v2(window.width, window.height);
-            draw_frame.cbuffer = &cbuffer;
-            //log("mouse %f %f player %f %f", input_frame.mouse_x, input_frame.mouse_y, world_size_to_screen_size(get_player()->pos).x, world_size_to_screen_size(get_player()->pos).y);
-        }
-
         //:frame updating
         draw_frame.enable_z_sorting = true;
 		world_frame.world_proj = m4_make_orthographic_projection(window.width * -0.5, window.width * 0.5, window.height * -0.5, window.height * 0.5, -1, 10);
@@ -740,23 +607,12 @@ int entry(int argc, char **argv) {
                             push_z_layer(layer_entity);
                             render_sprite_entity(en);
                             if(
-                                get_player()->pos.x < get_sword()->pos.x + get_player()->size.x &&
-                                get_player()->pos.x + get_player()->size.x > get_sword()->pos.x &&
-                                get_player()->pos.y < get_sword()->pos.y + get_player()->size.y &&
-                                get_player()->pos.y + get_player()->size.y > get_sword()->pos.y
-                            ){
-                                if(world->ux_state == UX_default){
-                                    world->ux_state = UX_sword; 
-                                    get_sword()->color = v4(0,0,0,0);
-                                }
-                            }
-                            if(
                                 get_player()->pos.x < get_monster()->pos.x + get_player()->size.x &&
                                 get_player()->pos.x + get_player()->size.x > get_monster()->pos.x &&
                                 get_player()->pos.y < get_monster()->pos.y + get_player()->size.y &&
                                 get_player()->pos.y + get_player()->size.y > get_monster()->pos.y
                             ){
-                                if(world->ux_state == UX_sword || world->ux_state == UX_win){
+                                if(world->ux_state == UX_win){
                                     world->ux_state = UX_win; 
                                     get_monster()->color = v4(0,0,0,0);
                                 }
@@ -809,18 +665,6 @@ int entry(int argc, char **argv) {
 						//draw_rect(v2(x_pos + tile_width * -0.5, y_pos + tile_width * -0.5), v2(tile_width, tile_width), col);
 					}
                     
-                    if(world->tiles[x][y].walls[0]){
-                        draw_line(v2(x_pos, y_pos + tile_width), v2(x_pos + tile_width, y_pos + tile_width), 1, col);
-                    } 
-                    if(world->tiles[x][y].walls[1]){
-                        draw_line(v2(x_pos + tile_width, y_pos + tile_width), v2(x_pos + tile_width, y_pos), 1, col);
-                    } 
-                    if(world->tiles[x][y].walls[2]){
-                        draw_line(v2(x_pos + tile_width, y_pos), v2(x_pos, y_pos), 1, col);
-                    } 
-                    if(world->tiles[x][y].walls[3]){
-                        draw_line(v2(x_pos, y_pos), v2(x_pos, y_pos + tile_width), 1, col);
-                    } 
 				}
 			}
 
