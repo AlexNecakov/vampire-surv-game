@@ -5,11 +5,7 @@ const u32 font_height = 64;
 const float32 font_padding = (float32)font_height/10.0f;
 
 const float32 spriteSheetWidth = 240.0;
-const s32 tile_width = 19;
-const s32 wall_width = 1;
-
-const s32 maze_width = 16;
-const s32 maze_height = 16;
+const s32 tile_width = 16;
 
 const s32 layer_stage_bg = 0;
 const s32 layer_stage_fg = 5;
@@ -432,11 +428,16 @@ int entry(int argc, char **argv) {
     {	
         Entity* player_en = entity_create();
         setup_player(player_en);
-        player_en->pos = v2(2 + get_random_int_in_range(0,maze_width-1) * tile_width,2 + get_random_int_in_range(0,maze_height-1) * tile_width);
+        player_en->pos = v2(0,0);
 
-        Entity* monster_en = entity_create();
-        setup_monster(monster_en);
-        monster_en->pos = v2(2 + get_random_int_in_range(0,maze_width-1) * tile_width,2 + get_random_int_in_range(0,maze_height-1) * tile_width);
+        for(int i = 0; i < 10; i++){
+            Entity* monster_en = entity_create();
+            setup_monster(monster_en);
+            monster_en->pos = v2(get_random_int_in_range(5,15) * tile_width, 0);
+            monster_en->pos = v2_rotate_point_around_pivot(monster_en->pos, v2(0,0), get_random_float32_in_range(0,2*PI64)); 
+            monster_en->pos = v2_add(monster_en->pos, player_en->pos);
+            log("monster pos %f %f", monster_en->pos.x, monster_en->pos.y);
+        }
 
     }
 
@@ -463,9 +464,6 @@ int entry(int argc, char **argv) {
 			Entity* en = &world->entities[i];
 			if (en->is_valid && en->arch == ARCH_player) {
 				world_frame.player = en;
-			}
-			if (en->is_valid && en->arch == ARCH_monster) {
-				world_frame.monster = en;
 			}
 		}
        
@@ -511,91 +509,6 @@ int entry(int argc, char **argv) {
 
         }
 
-        //:ai movement
-        {
-            Vector2 current_vec = get_monster()->move_vec;
-            bool change_flag = false;
-            
-            //change dir if stopped or collided
-            if(v2_length(get_monster()->move_vec) == 0){
-                get_monster()->move_vec = v2(1,0); 
-                change_flag = true;
-            }
-
-            Vector2 move_options[4];
-            //check for open paths
-            for(int i = 0; i < 4; i++){
-                Vector2 check_vec = v2(tile_width * 5, 0);  
-                check_vec = v2_rotate_point_around_pivot(check_vec, v2(0,0), to_radians(i * 90));
-                check_vec = v2_add(get_monster()->pos, check_vec);
-                Vector4 col = v4(0,0,0,1);
-                if(i == 0){
-                    col = v4(1,0,0,1);
-                }
-                else if(i == 1){
-                    col = v4(0,1,0,1);
-                }
-                else if(i == 2){
-                    col = v4(0,0,1,1);
-                }
-                else if(i == 3){
-                    col = v4(1,1,1,1);
-                }
-
-                float min_dist = tile_width * 100;
-                int closest_wall = 0;
-
-                for(int j = 0; j < MAX_ENTITY_COUNT; j++){
-                    Entity* en = &world->entities[j];
-                    if(en->is_valid && en->arch == ARCH_terrain){
-                        bool collision_detected = check_ray_collision(check_vec, get_monster(), en);
-                        if(collision_detected){
-                            float dist = fabsf(v2_length(v2_sub(en->pos, get_monster()->pos)));
-                            float temp = fabsf(v2_length(v2_sub(get_entity_midpoint(en), get_monster()->pos)));
-                            dist = (dist < temp)?dist:temp;
-                            temp = fabsf(v2_length(v2_sub(v2_add(en->pos, en->size), get_monster()->pos)));
-                            dist = (dist < temp)?dist:temp;
-                            //log("detected collision in dir %f %f dist %f ent %d", check_vec.x, check_vec.y, dist, j);
-                            if(dist < min_dist){
-                                min_dist = dist;
-                                closest_wall = j;
-                            }
-                        }
-                    }
-                }
-                
-                if(world->debug_render){
-                    //log("dir %f %f min_dist %f wall id %d", check_vec.x, check_vec.y, min_dist, closest_wall);
-                    set_world_space();
-                    push_z_layer(layer_cursor);
-                    Vector2 wall_vec = v2(min_dist, 0);  
-                    wall_vec = v2_rotate_point_around_pivot(wall_vec, v2(0,0), to_radians(i * 90));
-                    wall_vec = v2_add(get_monster()->pos, wall_vec);
-                    //draw_line(get_monster()->pos, wall_vec, 1, v4(0,1,0,1));
-                    pop_z_layer();
-                }
-                
-                if(min_dist > tile_width){
-                    //change_flag = true;
-               }
-            }
-
-            if(change_flag){
-                int dir = get_random_int_in_range(0,2);
-                if(dir == 0){
-                    get_monster()->move_vec = v2_rotate_point_around_pivot(get_monster()->move_vec, v2(0,0), to_radians(90)); 
-                }
-                else if(dir == 1){
-                    get_monster()->move_vec = v2_rotate_point_around_pivot(get_monster()->move_vec, v2(0,0), to_radians(270)); 
-                }
-            }
-            else{
-                get_monster()->move_vec = current_vec;
-            }
-
-            get_monster()->move_vec = v2_normalize(get_monster()->move_vec);
-        }
-
         //:entity loop 
         {
             for (int i = 0; i < MAX_ENTITY_COUNT; i++){
@@ -606,25 +519,29 @@ int entry(int argc, char **argv) {
 		                    set_world_space();
                             push_z_layer(layer_entity);
                             render_sprite_entity(en);
-                            if(
-                                get_player()->pos.x < get_monster()->pos.x + get_player()->size.x &&
-                                get_player()->pos.x + get_player()->size.x > get_monster()->pos.x &&
-                                get_player()->pos.y < get_monster()->pos.y + get_player()->size.y &&
-                                get_player()->pos.y + get_player()->size.y > get_monster()->pos.y
-                            ){
-                                if(world->ux_state == UX_win){
-                                    world->ux_state = UX_win; 
-                                    get_monster()->color = v4(0,0,0,0);
-                                }
-                                else{
-                                    world->ux_state = UX_lose;
-                                }
-                            }
                             break;
                         case ARCH_monster:
 		                    set_world_space();
                             push_z_layer(layer_entity);
                             render_sprite_entity(en);
+                            en->move_vec = v2_normalize(v2_sub(get_player()->pos, en->pos));
+                            en->pos = v2_add(en->pos, v2_mulf(en->move_vec, en->move_speed * delta_t));
+                            if(
+                                get_player()->pos.x < en->pos.x + get_player()->size.x &&
+                                get_player()->pos.x + get_player()->size.x > en->pos.x &&
+                                get_player()->pos.y < en->pos.y + get_player()->size.y &&
+                                get_player()->pos.y + get_player()->size.y > en->pos.y
+                            ){
+                                if(world->ux_state == UX_win){
+                                    world->ux_state = UX_win; 
+                                }
+                                else{
+                                    world->ux_state = UX_lose;
+                                }
+                            }
+                            if(world->debug_render){
+                                draw_line(en->pos, v2_add(en->pos, v2_mulf(en->move_vec, tile_width)), 1, COLOR_RED);
+                            }
                             break;
                         case ARCH_terrain:
 		                    set_world_space();
@@ -632,7 +549,6 @@ int entry(int argc, char **argv) {
                             render_rect_entity(en);
                             
                             check_collision(get_player(), en, delta_t);
-                            check_collision(get_monster(), en, delta_t);
                             break;
                         default:
 		                    set_world_space();
@@ -646,15 +562,14 @@ int entry(int argc, char **argv) {
             }
         }
         get_player()->pos = v2_add(get_player()->pos, v2_mulf(get_player()->move_vec, get_player()->move_speed * delta_t));
-        get_monster()->pos = v2_add(get_monster()->pos, v2_mulf(get_monster()->move_vec, get_monster()->move_speed * delta_t));
 
         //:tile rendering
 		{
 		    set_world_space();
 		    push_z_layer(layer_stage_fg);
 
-			int tile_radius_x = maze_width;
-			int tile_radius_y = maze_height;
+			int tile_radius_x = 40;
+			int tile_radius_y = 30;
 			for (int x = 0; x < tile_radius_x; x++) {
 				for (int y = 0; y < tile_radius_y; y++) {
                     float x_pos = x * tile_width;
@@ -662,7 +577,7 @@ int entry(int argc, char **argv) {
 					Vector4 col = v4(0.1, 0.1, 0.1, 1);
 
 					if ((x + (y % 2 == 0) ) % 2 == 0) {
-						//draw_rect(v2(x_pos + tile_width * -0.5, y_pos + tile_width * -0.5), v2(tile_width, tile_width), col);
+						draw_rect(v2(x_pos + tile_width * -0.5, y_pos + tile_width * -0.5), v2(tile_width, tile_width), col);
 					}
                     
 				}
