@@ -563,27 +563,27 @@ int entry(int argc, char **argv) {
         }
         get_player()->pos = v2_add(get_player()->pos, v2_mulf(get_player()->move_vec, get_player()->move_speed * delta_t));
 
-        //:tile rendering
+		// :tile rendering
 		{
 		    set_world_space();
 		    push_z_layer(layer_stage_fg);
-
+			int player_tile_x = world_pos_to_tile_pos(get_player()->pos.x);
+			int player_tile_y = world_pos_to_tile_pos(get_player()->pos.y);
 			int tile_radius_x = 40;
 			int tile_radius_y = 30;
-			for (int x = 0; x < tile_radius_x; x++) {
-				for (int y = 0; y < tile_radius_y; y++) {
-                    float x_pos = x * tile_width;
-                    float y_pos = y * tile_width;
-					Vector4 col = v4(0.1, 0.1, 0.1, 1);
-
+			for (int x = player_tile_x - tile_radius_x; x < player_tile_x + tile_radius_x; x++) {
+				for (int y = player_tile_y - tile_radius_y; y < player_tile_y + tile_radius_y; y++) {
 					if ((x + (y % 2 == 0) ) % 2 == 0) {
+						Vector4 col = v4(0.1, 0.1, 0.1, 0.1);
+						float x_pos = x * tile_width;
+						float y_pos = y * tile_width;
 						draw_rect(v2(x_pos + tile_width * -0.5, y_pos + tile_width * -0.5), v2(tile_width, tile_width), col);
 					}
-                    
 				}
 			}
 
             pop_z_layer();
+			// draw_rect(v2(tile_pos_to_world_pos(mouse_tile_x) + tile_width * -0.5, tile_pos_to_world_pos(mouse_tile_y) + tile_width * -0.5), v2(tile_width, tile_width), v4(0.5, 0.5, 0.5, 0.5));
 		}
 
         //:ui
