@@ -227,7 +227,7 @@ void setup_player(Entity* en) {
     en->size = get_sprite_size(sprite); 
     en->has_collision = true;
     en->color = COLOR_WHITE;
-    en->move_speed = 100.0;
+    en->move_speed = 150.0;
 }
 
 void setup_monster(Entity* en) {
@@ -392,7 +392,7 @@ void animate_v2_to_target(Vector2* value, Vector2 target, float delta_t, float r
 //:entry
 int entry(int argc, char **argv) {
 	
-	window.title = STR("Light Game");
+	window.title = STR("Survivors");
 	window.scaled_width = 1280; // We need to set the scaled size if we want to handle system scaling (DPI)
 	window.scaled_height = 720; 
     window.x = 200;
@@ -467,6 +467,7 @@ int entry(int argc, char **argv) {
 			}
 		}
        
+
         //:frame updating
         draw_frame.enable_z_sorting = true;
 		world_frame.world_proj = m4_make_orthographic_projection(window.width * -0.5, window.width * 0.5, window.height * -0.5, window.height * 0.5, -1, 10);
@@ -616,6 +617,15 @@ int entry(int argc, char **argv) {
                     last_fps = frame_count;
                     frame_count = 0;
                     seconds_counter = 0.0;
+                    for(int i = 0; i < 10; i++){
+                        Entity* monster_en = entity_create();
+                        setup_monster(monster_en);
+                        monster_en->pos = v2(get_random_int_in_range(5,15) * tile_width, 0);
+                        monster_en->pos = v2_rotate_point_around_pivot(monster_en->pos, v2(0,0), get_random_float32_in_range(0,2*PI64)); 
+                        monster_en->pos = v2_add(monster_en->pos, get_player()->pos);
+                        log("monster pos %f %f", monster_en->pos.x, monster_en->pos.y);
+                    }
+
                 }
                 string text = STR("fps: %i time: %.2f");
                 text = sprint(temp_allocator, text, last_fps, world->timer);
