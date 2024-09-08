@@ -144,31 +144,21 @@ void solid_entity_collision(Entity* en_1, Entity* en_2, float64 delta_t){
         if(!en_1->is_static){
             en_1->pos = v2_add(en_1->pos, v2_mulf(v2_normalize(en_to_en_vec), delta_t));
         }
-        if(!en_2->is_static){
-            en_2->pos = v2_add(en_2->pos, v2_mulf(v2_normalize(en_to_en_vec), delta_t));
-        }
     }
 
     Vector2 temp_vec_1 = en_1->move_vec;
-    Vector2 temp_vec_2 = en_2->move_vec;
 
     en_1->move_vec = v2_normalize(v2(temp_vec_1.x, 0));
-    en_2->move_vec = v2_normalize(v2(temp_vec_2.x, 0));
     if(check_entity_will_collide(en_1, en_2, delta_t)){
         temp_vec_1.x = 0;
-        temp_vec_2.x = 0;
     }
 
     en_1->move_vec = v2_normalize(v2(0, temp_vec_1.y));
-    en_2->move_vec = v2_normalize(v2(0, temp_vec_2.y));
     if(check_entity_will_collide(en_1, en_2, delta_t)){
         temp_vec_1.y = 0;
-        temp_vec_2.y = 0;
     }
 
     en_1->move_vec = v2_normalize(temp_vec_1);
-    en_2->move_vec = v2_normalize(temp_vec_2);
-
 }
 
 bool check_ray_collision(Vector2 ray, Entity* en_1, Entity* en_2){
