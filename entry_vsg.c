@@ -215,12 +215,6 @@ bool check_ray_collision(Vector2 ray, Entity* en_1, Entity* en_2){
     return collision_detected;
 }
 
-//:tile
-typedef struct Tile{
-    bool visited;
-    //n,e,s,w
-    bool walls[4];
-} Tile;
 
 //:world
 typedef struct World{
@@ -291,8 +285,8 @@ void setup_weapon(Entity* en) {
     en->is_line = true;
     en->collider = COLL_rect;
     en->color = COLOR_WHITE;
-    en->size = v2(25,0);
-    en->power = 25;
+    en->size = v2(25,5);
+    en->power = 500;
 }
 
 void setup_wall(Entity* en, Vector2 size) {
@@ -452,7 +446,7 @@ int entry(int argc, char **argv) {
 	window.point_height = 720; 
     window.x = 200;
     window.y = 200;
-	window.clear_color = COLOR_BLACK;
+	window.clear_color = v4(0, 0.7, .3, 1);
 	window.force_topmost = false;
 
     float32 aspectRatio = (float32)window.width/(float32)window.height; 
@@ -488,7 +482,7 @@ int entry(int argc, char **argv) {
         
         Entity* weapon_en = entity_create();
         setup_weapon(weapon_en);
-        weapon_en->pos = player_en->pos;
+        weapon_en->pos = v2_add(player_en->pos, v2(player_en->size.x, 0));
 
         for(int i = 0; i < 10; i++){
             Entity* monster_en = entity_create();
@@ -614,7 +608,7 @@ int entry(int argc, char **argv) {
                                     }
                                 }
                             }
-                            en->pos = get_player()->pos;
+                            en->pos = v2_add(get_player()->pos, v2(get_player()->size.x, 0));
                             render_rect_entity(en);
                             break;
                         case ARCH_monster:
