@@ -78,7 +78,7 @@ typedef enum EntityArchetype{
     ARCH_player,
     ARCH_monster,
     ARCH_terrain,
-    ARCH_powerup,
+    ARCH_weapon,
     ARCH_MAX,
 } EntityArchetype;
 
@@ -93,6 +93,7 @@ typedef struct Entity{
     bool is_valid;
     EntityArchetype arch;
     bool is_sprite;
+    bool is_attached_to_player;
     SpriteID sprite_id;
     bool is_line;
     Vector2 pos;
@@ -101,6 +102,8 @@ typedef struct Entity{
     CollisionBox collider;
     bool is_static;
     Vector2 move_vec;
+    float health;
+    float power;
     float move_speed;
 } Entity;
 
@@ -254,6 +257,7 @@ void setup_player(Entity* en) {
     en->collider = COLL_rect;
     en->color = COLOR_WHITE;
     en->move_speed = 150.0;
+    en->health = 100;
 }
 
 void setup_monster(Entity* en) {
@@ -265,6 +269,16 @@ void setup_monster(Entity* en) {
     en->collider = COLL_rect;
     en->color = COLOR_WHITE;
     en->move_speed = 25;
+    en->health = 50;
+}
+
+void setup_weapon(Entity* en) {
+    en->arch = ARCH_weapon;
+    en->is_line = true;
+    en->collider = COLL_rect;
+    en->color = COLOR_WHITE;
+    en->size = v2(25,0);
+    en->power = 25;
 }
 
 void setup_wall(Entity* en, Vector2 size) {
@@ -420,8 +434,8 @@ void animate_v2_to_target(Vector2* value, Vector2 target, float delta_t, float r
 int entry(int argc, char **argv) {
 	
 	window.title = STR("Survivors");
-	window.scaled_width = 1280; // We need to set the scaled size if we want to handle system scaling (DPI)
-	window.scaled_height = 720; 
+	window.point_width = 1280; // We need to set the scaled size if we want to handle system scaling (DPI)
+	window.point_height = 720; 
     window.x = 200;
     window.y = 200;
 	window.clear_color = hex_to_rgba(0x7fff94ff);
@@ -456,6 +470,10 @@ int entry(int argc, char **argv) {
         Entity* player_en = entity_create();
         setup_player(player_en);
         player_en->pos = v2(0,0);
+        
+        Entity* weapon_en = entity_create();
+        setup_weapon(weapon_en);
+        weapon_en->pos = player_en->pos;
 
         for(int i = 0; i < 10; i++){
             Entity* monster_en = entity_create();
@@ -548,6 +566,22 @@ int entry(int argc, char **argv) {
                             push_z_layer(layer_entity);
                             render_sprite_entity(en);
                             break;
+                        case ARCH_weapon:
+		                    set_world_space();
+                            push_z_layer(layer_entity);
+                            for(int j = 0; j < MAX_ENTITY_COUNT; j++){
+                                Entity* other_en = &world->entities[j];
+                                if(i != j){
+                                    if(other_en->arch == ARCH_monster){
+                                        if(check_entity_collision(en, other_en)){
+                                            other_en->health -= (en->power * delta_t);
+                                        }
+                                    }
+                                }
+                            }
+                            en->pos = get_player()->pos;
+                            render_rect_entity(en);
+                            break;
                         case ARCH_monster:
 		                    set_world_space();
                             push_z_layer(layer_entity);
@@ -561,12 +595,7 @@ int entry(int argc, char **argv) {
                                     }
                                     else if(other_en->arch == ARCH_player){
                                         if(check_entity_collision(en, other_en)){
-                                            if(world->ux_state == UX_win){
-                                                world->ux_state = UX_win; 
-                                            }
-                                            else{
-                                                world->ux_state = UX_lose;
-                                            }
+                                            other_en->health -= (en->power * delta_t);
                                         }
                                     }
                                 }
@@ -575,6 +604,10 @@ int entry(int argc, char **argv) {
                             
                             if(world->debug_render){
                                 draw_line(en->pos, v2_add(en->pos, v2_mulf(en->move_vec, tile_width)), 1, COLOR_RED);
+                            }
+
+                            if(en->health <= 0){
+                                en->color = v4(0,0,0,0);
                             }
                             break;
                         case ARCH_terrain:
@@ -654,12 +687,12 @@ int entry(int argc, char **argv) {
                         monster_en->pos = v2(get_random_int_in_range(5,15) * tile_width, 0);
                         monster_en->pos = v2_rotate_point_around_pivot(monster_en->pos, v2(0,0), get_random_float32_in_range(0,2*PI64)); 
                         monster_en->pos = v2_add(monster_en->pos, get_player()->pos);
-                        log("monster pos %f %f", monster_en->pos.x, monster_en->pos.y);
+                        //log("monster pos %f %f", monster_en->pos.x, monster_en->pos.y);
                     }
 
                 }
-                string text = STR("fps: %i time: %.2f");
-                text = sprint(temp_allocator, text, last_fps, world->timer);
+                string text = STR("fps: %i time: %.2f health: %.2f");
+                text = sprint(temp_allocator, text, last_fps, world->timer, get_player()->health);
                 set_screen_space();
                 push_z_layer(layer_text);
                 Matrix4 xform = m4_scalar(1.0);
