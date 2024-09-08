@@ -82,6 +82,13 @@ typedef enum EntityArchetype{
     ARCH_MAX,
 } EntityArchetype;
 
+typedef enum CollisionBox{
+    COLL_nil = 0,
+    COLL_rect,
+    COLL_circ,
+    COLL_complex,
+} CollisionBox;
+
 typedef struct Entity{
     bool is_valid;
     EntityArchetype arch;
@@ -91,7 +98,8 @@ typedef struct Entity{
     Vector2 pos;
     Vector2 size;
     Vector4 color;
-    bool has_collision;
+    CollisionBox collider;
+    bool is_static;
     Vector2 move_vec;
     float move_speed;
 } Entity;
@@ -101,66 +109,99 @@ Vector2 get_entity_midpoint(Entity* en){
 }
 
 //:collision
-void check_collision(Entity* dynamic_en, Entity* static_en, float delta_t){
-    Vector2 next_pos = v2_add(dynamic_en->pos, v2_mulf(dynamic_en->move_vec, dynamic_en->move_speed * delta_t));
-    if(
-        next_pos.x < static_en->pos.x + static_en->size.x &&
-        next_pos.x + dynamic_en->size.x > static_en->pos.x &&
-        next_pos.y < static_en->pos.y + static_en->size.y &&
-        next_pos.y + dynamic_en->size.y > static_en->pos.y
-    ){
-        Vector2 next_pos_x = v2_add(dynamic_en->pos, v2_mulf(v2(dynamic_en->move_vec.x, 0), dynamic_en->move_speed * delta_t));
-        Vector2 next_pos_y = v2_add(dynamic_en->pos, v2_mulf(v2(0, dynamic_en->move_vec.y), dynamic_en->move_speed * delta_t));
+bool check_entity_collision(Entity* en_1, Entity* en_2){
+    bool collision_detected = false;
+    if(en_1->collider == COLL_rect && en_2->collider == COLL_rect){
         if(
-            next_pos_x.x < static_en->pos.x + static_en->size.x &&
-            next_pos_x.x + dynamic_en->size.x > static_en->pos.x &&
-            next_pos_x.y < static_en->pos.y + static_en->size.y &&
-            next_pos_x.y + dynamic_en->size.y > static_en->pos.y
+            en_1->pos.x < en_2->pos.x + en_2->size.x &&
+            en_1->pos.x + en_1->size.x > en_2->pos.x &&
+            en_1->pos.y < en_2->pos.y + en_2->size.y &&
+            en_1->pos.y + en_1->size.y > en_2->pos.y
         ){
-            dynamic_en->move_vec.x = 0;
-        }
-        if(
-            next_pos_y.x < static_en->pos.x + static_en->size.x &&
-            next_pos_y.x + dynamic_en->size.x > static_en->pos.x &&
-            next_pos_y.y < static_en->pos.y + static_en->size.y &&
-            next_pos_y.y + dynamic_en->size.y > static_en->pos.y
-        ){
-            dynamic_en->move_vec.y = 0;
+            collision_detected = true;
         }
     }
+    return collision_detected;
 }
 
-bool check_ray_collision(Vector2 ray, Entity* dynamic_en, Entity* static_en){
+bool check_entity_will_collide(Entity* en_1, Entity* en_2, float64 delta_t){
+    bool collision_detected = false;
+
+    en_1->pos = v2_add(en_1->pos, v2_mulf(en_1->move_vec, en_1->move_speed * delta_t));
+    en_2->pos = v2_add(en_2->pos, v2_mulf(en_2->move_vec, en_2->move_speed * delta_t));
+    collision_detected = check_entity_collision(en_1, en_2);
+
+    en_1->pos = v2_sub(en_1->pos, v2_mulf(en_1->move_vec, en_1->move_speed * delta_t));
+    en_2->pos = v2_sub(en_2->pos, v2_mulf(en_2->move_vec, en_2->move_speed * delta_t));
+
+    return collision_detected;
+}
+
+void solid_entity_collision(Entity* en_1, Entity* en_2, float64 delta_t){
+    // repel out of other entity if dynamic solid
+    if(check_entity_collision(en_1, en_2)){
+        Vector2 en_to_en_vec = v2_sub(get_entity_midpoint(en_1), get_entity_midpoint(en_2));
+        if(!en_1->is_static){
+            en_1->pos = v2_add(en_1->pos, v2_mulf(v2_normalize(en_to_en_vec), delta_t));
+        }
+        if(!en_2->is_static){
+            en_2->pos = v2_add(en_2->pos, v2_mulf(v2_normalize(en_to_en_vec), delta_t));
+        }
+    }
+
+    Vector2 temp_vec_1 = en_1->move_vec;
+    Vector2 temp_vec_2 = en_2->move_vec;
+
+    en_1->move_vec = v2_normalize(v2(temp_vec_1.x, 0));
+    en_2->move_vec = v2_normalize(v2(temp_vec_2.x, 0));
+    if(check_entity_will_collide(en_1, en_2, delta_t)){
+        temp_vec_1.x = 0;
+        temp_vec_2.x = 0;
+    }
+
+    en_1->move_vec = v2_normalize(v2(0, temp_vec_1.y));
+    en_2->move_vec = v2_normalize(v2(0, temp_vec_2.y));
+    if(check_entity_will_collide(en_1, en_2, delta_t)){
+        temp_vec_1.y = 0;
+        temp_vec_2.y = 0;
+    }
+
+    en_1->move_vec = v2_normalize(temp_vec_1);
+    en_2->move_vec = v2_normalize(temp_vec_2);
+
+}
+
+bool check_ray_collision(Vector2 ray, Entity* en_1, Entity* en_2){
     bool collision_detected = false;
     if(
-        dynamic_en->pos.x < static_en->pos.x + static_en->size.x &&
-        dynamic_en->pos.x + dynamic_en->size.x + ray.x > static_en->pos.x &&
-        dynamic_en->pos.y < static_en->pos.y + static_en->size.y &&
-        dynamic_en->pos.y + dynamic_en->size.y + ray.y > static_en->pos.y
+        en_1->pos.x < en_2->pos.x + en_2->size.x &&
+        en_1->pos.x + en_1->size.x + ray.x > en_2->pos.x &&
+        en_1->pos.y < en_2->pos.y + en_2->size.y &&
+        en_1->pos.y + en_1->size.y + ray.y > en_2->pos.y
     ){
         collision_detected = true;
     }
     else if(
-        ray.x < static_en->pos.x + static_en->size.x &&
-        dynamic_en->pos.x + dynamic_en->size.x + ray.x > static_en->pos.x &&
-        dynamic_en->pos.y < static_en->pos.y + static_en->size.y &&
-        dynamic_en->pos.y + dynamic_en->size.y + ray.y > static_en->pos.y
+        ray.x < en_2->pos.x + en_2->size.x &&
+        en_1->pos.x + en_1->size.x + ray.x > en_2->pos.x &&
+        en_1->pos.y < en_2->pos.y + en_2->size.y &&
+        en_1->pos.y + en_1->size.y + ray.y > en_2->pos.y
     ){
         collision_detected = true;
     }
     else if(
-        ray.x < static_en->pos.x + static_en->size.x &&
-        dynamic_en->pos.x + dynamic_en->size.x + ray.x > static_en->pos.x &&
-        ray.y < static_en->pos.y + static_en->size.y &&
-        dynamic_en->pos.y + dynamic_en->size.y + ray.y > static_en->pos.y
+        ray.x < en_2->pos.x + en_2->size.x &&
+        en_1->pos.x + en_1->size.x + ray.x > en_2->pos.x &&
+        ray.y < en_2->pos.y + en_2->size.y &&
+        en_1->pos.y + en_1->size.y + ray.y > en_2->pos.y
     ){
         collision_detected = true;
     }
     else if(
-        dynamic_en->pos.x < static_en->pos.x + static_en->size.x &&
-        dynamic_en->pos.x + dynamic_en->size.x + ray.x > static_en->pos.x &&
-        ray.y < static_en->pos.y + static_en->size.y &&
-        dynamic_en->pos.y + dynamic_en->size.y + ray.y > static_en->pos.y
+        en_1->pos.x < en_2->pos.x + en_2->size.x &&
+        en_1->pos.x + en_1->size.x + ray.x > en_2->pos.x &&
+        ray.y < en_2->pos.y + en_2->size.y &&
+        en_1->pos.y + en_1->size.y + ray.y > en_2->pos.y
     ){
         collision_detected = true;
     }
@@ -189,16 +230,11 @@ typedef struct WorldFrame {
 	Matrix4 world_proj;
 	Matrix4 world_view;
 	Entity* player;
-	Entity* monster;
 } WorldFrame;
 WorldFrame world_frame;
 
 Entity* get_player() {
 	return world_frame.player;
-}
-
-Entity* get_monster() {
-	return world_frame.monster;
 }
 
 Entity* entity_create() {
@@ -225,7 +261,7 @@ void setup_player(Entity* en) {
     en->sprite_id = SPRITE_player;
     Sprite* sprite = get_sprite(en->sprite_id);
     en->size = get_sprite_size(sprite); 
-    en->has_collision = true;
+    en->collider = COLL_rect;
     en->color = COLOR_WHITE;
     en->move_speed = 150.0;
 }
@@ -236,7 +272,7 @@ void setup_monster(Entity* en) {
     en->sprite_id = SPRITE_monster;
     Sprite* sprite = get_sprite(en->sprite_id);
     en->size = get_sprite_size(sprite); 
-    en->has_collision = true;
+    en->collider = COLL_rect;
     en->color = COLOR_WHITE;
     en->move_speed = 25;
 }
@@ -245,7 +281,8 @@ void setup_wall(Entity* en, Vector2 size) {
     en->arch = ARCH_terrain;
     en->is_line = true;
     en->is_sprite = true;
-    en->has_collision = true;
+    en->collider = COLL_rect;
+    en->is_static = true;
     en->color = COLOR_WHITE;
     en->size = size;
 }
@@ -526,20 +563,26 @@ int entry(int argc, char **argv) {
                             push_z_layer(layer_entity);
                             render_sprite_entity(en);
                             en->move_vec = v2_normalize(v2_sub(get_player()->pos, en->pos));
-                            en->pos = v2_add(en->pos, v2_mulf(en->move_vec, en->move_speed * delta_t));
-                            if(
-                                get_player()->pos.x < en->pos.x + get_player()->size.x &&
-                                get_player()->pos.x + get_player()->size.x > en->pos.x &&
-                                get_player()->pos.y < en->pos.y + get_player()->size.y &&
-                                get_player()->pos.y + get_player()->size.y > en->pos.y
-                            ){
-                                if(world->ux_state == UX_win){
-                                    world->ux_state = UX_win; 
-                                }
-                                else{
-                                    world->ux_state = UX_lose;
+                            for(int j = 0; j < MAX_ENTITY_COUNT; j++){
+                                Entity* other_en = &world->entities[j];
+                                if(i != j){
+                                    if(other_en->arch == ARCH_monster){
+                                        solid_entity_collision(en, other_en, delta_t);
+                                    }
+                                    else if(other_en->arch == ARCH_player){
+                                        if(check_entity_collision(en, other_en)){
+                                            if(world->ux_state == UX_win){
+                                                world->ux_state = UX_win; 
+                                            }
+                                            else{
+                                                world->ux_state = UX_lose;
+                                            }
+                                        }
+                                    }
                                 }
                             }
+                            en->pos = v2_add(en->pos, v2_mulf(en->move_vec, en->move_speed * delta_t));
+                            
                             if(world->debug_render){
                                 draw_line(en->pos, v2_add(en->pos, v2_mulf(en->move_vec, tile_width)), 1, COLOR_RED);
                             }
@@ -548,8 +591,6 @@ int entry(int argc, char **argv) {
 		                    set_world_space();
                             push_z_layer(layer_entity);
                             render_rect_entity(en);
-                            
-                            check_collision(get_player(), en, delta_t);
                             break;
                         default:
 		                    set_world_space();
@@ -617,7 +658,7 @@ int entry(int argc, char **argv) {
                     last_fps = frame_count;
                     frame_count = 0;
                     seconds_counter = 0.0;
-                    for(int i = 0; i < 10; i++){
+                    for(int i = 0; i < 0; i++){
                         Entity* monster_en = entity_create();
                         setup_monster(monster_en);
                         monster_en->pos = v2(get_random_int_in_range(5,15) * tile_width, 0);
