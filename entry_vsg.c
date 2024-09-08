@@ -1,6 +1,9 @@
 //constants
 #define MAX_ENTITY_COUNT 1024
 
+#define clamp_bottom(a, b) max(a, b)
+#define clamp_top(a, b) min(a, b)
+
 const u32 font_height = 64;
 const float32 font_padding = (float32)font_height/10.0f;
 
@@ -21,6 +24,18 @@ Vector4 bg_box_col = {0, 0, 1.0, 0.9};
 
 float screen_width = 240.0;
 float screen_height = 135.0;
+
+float exp_error_flash_alpha = 0;
+float exp_error_flash_alpha_target = 0;
+float camera_trauma = 0;
+float zoom = 5.3;
+Vector2 camera_pos = {0};
+float max_cam_shake_translate = 200.0f;
+float max_cam_shake_rotate = 4.0f;
+
+void camera_shake(float amount) {
+	camera_trauma += amount;
+}
 
 //:math
 inline float v2_dist(Vector2 a, Vector2 b) {
@@ -438,7 +453,9 @@ int entry(int argc, char **argv) {
 	window.point_height = 720; 
     window.x = 200;
     window.y = 200;
-	window.clear_color = hex_to_rgba(0x7fff94ff);
+	window.clear_color = COLOR_BLACK;
+	window.force_topmost = false;
+
     float32 aspectRatio = (float32)window.width/(float32)window.height; 
     float32 zoom = window.width/spriteSheetWidth;
     float y_pos = (screen_height/3.0f) - 9.0f;
@@ -501,7 +518,6 @@ int entry(int argc, char **argv) {
         float64 now = os_get_elapsed_seconds();
 		float64 delta_t = now - last_time;
 		last_time = now;	
-        os_update(); 
 	
 		
         // find player 
@@ -519,12 +535,32 @@ int entry(int argc, char **argv) {
 
         // :camera
 		{
-			Vector2 target_pos = get_entity_midpoint(get_player());
+			// camera shake - https://www.youtube.com/watch?v=tu-Qe66AvtY
+			camera_trauma -= delta_t;
+			camera_trauma = clamp_bottom(camera_trauma, 0);
+			float cam_shake = clamp_top(pow(camera_trauma, 3), 1);
+
+			Vector2 target_pos = get_player()->pos;
 			animate_v2_to_target(&camera_pos, target_pos, delta_t, 30.0f);
 
-			world_frame.world_view = m4_make_scale(v3(1.0, 1.0, 1.0));
-			world_frame.world_view = m4_mul(world_frame.world_view, m4_make_translation(v3(camera_pos.x, camera_pos.y, 0)));
-			world_frame.world_view = m4_mul(world_frame.world_view, m4_make_scale(v3(1.0/zoom, 1.0/zoom, 1.0)));
+			world_frame.world_view = m4_scalar(1.0);
+
+			// randy: these might be ordered incorrectly for the camera shake. Not sure.
+
+			// translate into position
+			world_frame.world_view = m4_translate(world_frame.world_view, v3(camera_pos.x, camera_pos.y, 0));
+
+			// translational shake
+			float shake_x = max_cam_shake_translate * cam_shake * get_random_float32_in_range(-1, 1);
+			float shake_y = max_cam_shake_translate * cam_shake * get_random_float32_in_range(-1, 1);
+			world_frame.world_view = m4_translate(world_frame.world_view, v3(shake_x, shake_y, 0));
+
+			// rotational shake
+			// float shake_rotate = max_cam_shake_rotate * cam_shake * get_random_float32_in_range(-1, 1);
+			// world_frame.world_view = m4_rotate_z(world_frame.world_view, shake_rotate);
+
+			// scale the zoom
+			world_frame.world_view = m4_scale(world_frame.world_view, v3(1.0/zoom, 1.0/zoom, 1.0));
 		}
 
         //:input
@@ -701,6 +737,7 @@ int entry(int argc, char **argv) {
             }
         }
 
+        os_update();
         gfx_update();
 	}
 

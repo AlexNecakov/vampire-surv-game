@@ -41,7 +41,7 @@ typedef struct Context_Extra {
 
 // #include "oogabooga/examples/text_rendering.c"
 // #include "oogabooga/examples/custom_logger.c"
-//#include "oogabooga/examples/renderer_stress_test.c"
+// #include "oogabooga/examples/renderer_stress_test.c"
 // This is a minimal starting point for new projects. Copy & rename to get started
 
 // #include "oogabooga/examples/custom_logger.c"
