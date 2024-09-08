@@ -28,7 +28,6 @@ float screen_height = 135.0;
 float exp_error_flash_alpha = 0;
 float exp_error_flash_alpha_target = 0;
 float camera_trauma = 0;
-float zoom = 5.3;
 Vector2 camera_pos = {0};
 float max_cam_shake_translate = 200.0f;
 float max_cam_shake_rotate = 4.0f;
@@ -457,7 +456,6 @@ int entry(int argc, char **argv) {
 	window.force_topmost = false;
 
     float32 aspectRatio = (float32)window.width/(float32)window.height; 
-    float32 zoom = window.width/spriteSheetWidth;
     float y_pos = (screen_height/3.0f) - 9.0f;
     
 	seed_for_random = rdtsc();
@@ -519,6 +517,7 @@ int entry(int argc, char **argv) {
 		float64 delta_t = now - last_time;
 		last_time = now;	
 	
+        float zoom = window.width/spriteSheetWidth;
 		
         // find player 
 		for (int i = 0; i < MAX_ENTITY_COUNT; i++) {
@@ -543,7 +542,7 @@ int entry(int argc, char **argv) {
 			Vector2 target_pos = get_player()->pos;
 			animate_v2_to_target(&camera_pos, target_pos, delta_t, 30.0f);
 
-			world_frame.world_view = m4_scalar(1.0);
+			world_frame.world_view = m4_identity();
 
 			// randy: these might be ordered incorrectly for the camera shake. Not sure.
 
