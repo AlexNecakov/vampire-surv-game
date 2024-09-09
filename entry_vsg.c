@@ -317,6 +317,7 @@ void setup_experience(Entity* en) {
     en->sprite_id = SPRITE_experience;
     Sprite* sprite = get_sprite(en->sprite_id);
     en->size = get_sprite_size(sprite); 
+    en->power = 50;
 }
 
 void setup_wall(Entity* en, Vector2 size) {
@@ -657,7 +658,16 @@ int entry(int argc, char **argv) {
                                     }
                                 }
                             }
-                            en->pos = v2_add(get_player()->pos, v2(get_player()->size.x, get_player()->size.y / 2.0));
+                            en->pos = v2_mulf(get_player()->move_vec, en->size.x);
+                            en->pos = v2_add(en->pos, get_player()->pos);
+
+                            if(get_player()->experience.current >= get_player()->experience.max){
+                                get_player()->experience.current = 0;
+                                get_player()->experience.max = get_player()->experience.max * 1.1;
+                                get_player()->health.max = get_player()->health.max * 1.1;
+                                get_player()->health.current = get_player()->health.max;
+                                en->size = v2(en->size.x * 1.1, en->size.y);
+                            }
                             render_rect_entity(en);
                             break;
                         case ARCH_monster:
@@ -698,7 +708,7 @@ int entry(int argc, char **argv) {
                             push_z_layer(layer_entity);
                             render_sprite_entity(en);
                             if(check_entity_collision(en, get_player())){
-                                get_player()->experience.current++;
+                                get_player()->experience.current += en->power;
                                 en->color = v4(0,0,0,0);
                                 en->is_valid = false;
                             }
