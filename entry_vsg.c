@@ -10,15 +10,18 @@ const float32 font_padding = (float32)font_height/10.0f;
 const float32 spriteSheetWidth = 240.0;
 const s32 tile_width = 16;
 
-const s32 layer_stage_bg = 0;
-const s32 layer_stage_fg = 5;
-const s32 layer_world = 10;
-const s32 layer_view = 15;
-const s32 layer_entity = 20;
-const s32 layer_ui_bg = 30;
-const s32 layer_ui_fg = 35;
-const s32 layer_text = 40;
-const s32 layer_cursor = 50;
+//:layer
+typedef enum Layer{
+    layer_stage_bg = 0,
+    layer_stage_fg = 5,
+    layer_world = 10,
+    layer_view = 15,
+    layer_entity = 20,
+    layer_ui_bg = 30,
+    layer_ui_fg = 35,
+    layer_text = 40,
+    layer_cursor = 50,
+} Layer;
 
 Vector4 bg_box_col = {0, 0, 1.0, 0.9};
 
@@ -128,14 +131,16 @@ Vector2 get_entity_midpoint(Entity* en){
 //:collision
 bool check_entity_collision(Entity* en_1, Entity* en_2){
     bool collision_detected = false;
-    if(en_1->collider == COLL_rect && en_2->collider == COLL_rect){
-        if(
-            en_1->pos.x < en_2->pos.x + en_2->size.x &&
-            en_1->pos.x + en_1->size.x > en_2->pos.x &&
-            en_1->pos.y < en_2->pos.y + en_2->size.y &&
-            en_1->pos.y + en_1->size.y > en_2->pos.y
-        ){
-            collision_detected = true;
+    if(en_1->is_valid && en_2 -> is_valid){
+        if(en_1->collider == COLL_rect && en_2->collider == COLL_rect){
+            if(
+                en_1->pos.x < en_2->pos.x + en_2->size.x &&
+                en_1->pos.x + en_1->size.x > en_2->pos.x &&
+                en_1->pos.y < en_2->pos.y + en_2->size.y &&
+                en_1->pos.y + en_1->size.y > en_2->pos.y
+            ){
+                collision_detected = true;
+            }
         }
     }
     return collision_detected;
@@ -278,6 +283,7 @@ void setup_monster(Entity* en) {
     en->color = COLOR_WHITE;
     en->move_speed = 25;
     en->health = 50;
+    en->power = 25;
 }
 
 void setup_weapon(Entity* en) {
@@ -300,10 +306,12 @@ void setup_wall(Entity* en, Vector2 size) {
 }
 
 void render_sprite_entity(Entity* en){
-    Sprite* sprite = get_sprite(en->sprite_id);
-    Matrix4 xform = m4_scalar(1.0);
-    xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
-    draw_image_xform(sprite->image, xform, get_sprite_size(sprite), en->color);
+    if(en->is_valid){
+        Sprite* sprite = get_sprite(en->sprite_id);
+        Matrix4 xform = m4_scalar(1.0);
+        xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
+        draw_image_xform(sprite->image, xform, get_sprite_size(sprite), en->color);
+    }
 
     if(world->debug_render){
         //draw_text(world->font, sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
@@ -311,10 +319,11 @@ void render_sprite_entity(Entity* en){
 }
 
 void render_rect_entity(Entity* en){
-    Matrix4 xform = m4_scalar(1.0);
-    xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
-    draw_rect_xform(xform, en->size, en->color);
-
+    if(en->is_valid){
+        Matrix4 xform = m4_scalar(1.0);
+        xform         = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
+        draw_rect_xform(xform, en->size, en->color);
+    }
 }
 
 //:coordinate conversion
@@ -449,9 +458,6 @@ int entry(int argc, char **argv) {
 	window.clear_color = v4(0, 0.7, .3, 1);
 	window.force_topmost = false;
 
-    float32 aspectRatio = (float32)window.width/(float32)window.height; 
-    float y_pos = (screen_height/3.0f) - 9.0f;
-    
 	seed_for_random = rdtsc();
 	
     world = alloc(get_heap_allocator(), sizeof(World));
@@ -462,18 +468,17 @@ int entry(int argc, char **argv) {
 	assert(world->font, "Failed loading arial.ttf, %d", GetLastError());	
 	render_atlas_if_not_yet_rendered(world->font, 32, 'A');
 
-    sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\undefined.png"), get_heap_allocator()) };
-    sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\player.png"), get_heap_allocator()) };
-    sprites[SPRITE_monster] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\monster.png"), get_heap_allocator()) };
-	
-    // @ship debug this off
-	{
-		for (SpriteID i = 0; i < SPRITE_MAX; i++) {
+    {
+        sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\undefined.png"), get_heap_allocator()) };
+        sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\player.png"), get_heap_allocator()) };
+        sprites[SPRITE_monster] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\monster.png"), get_heap_allocator()) };
+		
+        for (SpriteID i = 0; i < SPRITE_MAX; i++) {
 			Sprite* sprite = &sprites[i];
 			assert(sprite->image, "Sprite was not setup properly");
 		}
-	}
-    
+    }
+
     //:setup world
     {	
         Entity* player_en = entity_create();
@@ -482,7 +487,6 @@ int entry(int argc, char **argv) {
         
         Entity* weapon_en = entity_create();
         setup_weapon(weapon_en);
-        weapon_en->pos = v2_add(player_en->pos, v2(player_en->size.x, 0));
 
         for(int i = 0; i < 10; i++){
             Entity* monster_en = entity_create();
@@ -490,7 +494,7 @@ int entry(int argc, char **argv) {
             monster_en->pos = v2(get_random_int_in_range(5,15) * tile_width, 0);
             monster_en->pos = v2_rotate_point_around_pivot(monster_en->pos, v2(0,0), get_random_float32_in_range(0,2*PI64)); 
             monster_en->pos = v2_add(monster_en->pos, player_en->pos);
-            log("monster pos %f %f", monster_en->pos.x, monster_en->pos.y);
+            //log("monster pos %f %f", monster_en->pos.x, monster_en->pos.y);
         }
 
     }
@@ -511,16 +515,22 @@ int entry(int argc, char **argv) {
 		float64 delta_t = now - last_time;
 		last_time = now;	
 	
-        float zoom = window.width/spriteSheetWidth;
+        float zoom = 5.3;
 		
         // find player 
 		for (int i = 0; i < MAX_ENTITY_COUNT; i++) {
 			Entity* en = &world->entities[i];
-			if (en->is_valid && en->arch == ARCH_player) {
+            if (!en->is_valid){
+                //clean up flagged entities before these pointers get used and after render
+                entity_destroy(en);
+            }
+            else if (en->is_valid && en->arch == ARCH_player) {
+                if(en->health < 0){
+                    world->ux_state = UX_lose;
+                }
 				world_frame.player = en;
 			}
 		}
-       
 
         //:frame updating
         draw_frame.enable_z_sorting = true;
@@ -593,7 +603,11 @@ int entry(int argc, char **argv) {
                         case ARCH_player:
 		                    set_world_space();
                             push_z_layer(layer_entity);
+                            en->pos = v2_add(en->pos, v2_mulf(en->move_vec, en->move_speed * delta_t));
                             render_sprite_entity(en);
+                            if(en->health <= 0){
+                                en->color = v4(0,0,0,0);
+                            }
                             break;
                         case ARCH_weapon:
 		                    set_world_space();
@@ -608,7 +622,7 @@ int entry(int argc, char **argv) {
                                     }
                                 }
                             }
-                            en->pos = v2_add(get_player()->pos, v2(get_player()->size.x, 0));
+                            en->pos = v2_add(get_player()->pos, v2(get_player()->size.x, get_player()->size.y / 2.0));
                             render_rect_entity(en);
                             break;
                         case ARCH_monster:
@@ -637,6 +651,7 @@ int entry(int argc, char **argv) {
 
                             if(en->health <= 0){
                                 en->color = v4(0,0,0,0);
+                                en->is_valid = false;
                             }
                             break;
                         case ARCH_terrain:
@@ -655,7 +670,6 @@ int entry(int argc, char **argv) {
                    
             }
         }
-        get_player()->pos = v2_add(get_player()->pos, v2_mulf(get_player()->move_vec, get_player()->move_speed * delta_t));
 
 		// :tile rendering
 		{
@@ -710,7 +724,7 @@ int entry(int argc, char **argv) {
                     last_fps = frame_count;
                     frame_count = 0;
                     seconds_counter = 0.0;
-                    for(int i = 0; i < 0; i++){
+                    for(int i = 0; i < 15; i++){
                         Entity* monster_en = entity_create();
                         setup_monster(monster_en);
                         monster_en->pos = v2(get_random_int_in_range(5,15) * tile_width, 0);
