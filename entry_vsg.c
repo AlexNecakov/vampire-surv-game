@@ -10,6 +10,9 @@ const float32 font_padding = (float32)font_height/10.0f;
 const float32 spriteSheetWidth = 240.0;
 const s32 tile_width = 16;
 
+bool debug_render;
+Gfx_Font* font;
+
 //:layer
 typedef enum Layer{
     layer_stage_bg = 0,
@@ -240,13 +243,12 @@ bool check_ray_collision(Vector2 ray, Entity* en_1, Entity* en_2){
 }
 
 
+
 //:world
 typedef struct World{
 	Entity entities[MAX_ENTITY_COUNT];
 	UXState ux_state;
-    bool debug_render;
     float64 timer;
-    Gfx_Font* font;
 } World;
 World* world = 0;
 
@@ -339,6 +341,40 @@ void setup_wall(Entity* en, Vector2 size) {
     en->size = size;
 }
 
+void setup_world(){
+    
+    world->ux_state = UX_default;
+    world->timer = 0;
+
+    Entity* player_en = entity_create();
+    setup_player(player_en);
+    player_en->pos = v2(0,0);
+    
+    Entity* weapon_en = entity_create();
+    setup_sword(weapon_en);
+
+    for(int i = 0; i < 10; i++){
+        Entity* monster_en = entity_create();
+        setup_monster(monster_en);
+        monster_en->pos = v2(get_random_int_in_range(5,15) * tile_width, 0);
+        monster_en->pos = v2_rotate_point_around_pivot(monster_en->pos, v2(0,0), get_random_float32_in_range(0,2*PI64)); 
+        monster_en->pos = v2_add(monster_en->pos, player_en->pos);
+        //log("monster pos %f %f", monster_en->pos.x, monster_en->pos.y);
+    }
+
+}
+
+void teardown_world(){
+    for(int i = 0; i < MAX_ENTITY_COUNT; i++){
+        Entity* en = &world->entities[i];
+        entity_destroy(en);
+    }
+}
+
+World* world_create() {
+    return world;
+}
+
 void render_sprite_entity(Entity* en){
     if(en->is_valid){
         Sprite* sprite = get_sprite(en->sprite_id);
@@ -347,8 +383,8 @@ void render_sprite_entity(Entity* en){
         draw_image_xform(sprite->image, xform, get_sprite_size(sprite), en->color);
     }
 
-    if(world->debug_render){
-        //draw_text(world->font, sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
+    if(debug_render){
+        //draw_text(font, sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y), font_height, en->pos, v2(0.1, 0.1), COLOR_WHITE);
     }
 }
 
@@ -494,14 +530,6 @@ int entry(int argc, char **argv) {
 
 	seed_for_random = rdtsc();
 	
-    world = alloc(get_heap_allocator(), sizeof(World));
-    memset(world, 0, sizeof(World));
-    world->ux_state = UX_default;
-    world->debug_render = true;
-    world->font = load_font_from_disk(STR("C:/windows/fonts/arial.ttf"), get_heap_allocator());
-	assert(world->font, "Failed loading arial.ttf, %d", GetLastError());	
-	render_atlas_if_not_yet_rendered(world->font, 32, 'A');
-
     {
         sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\undefined.png"), get_heap_allocator()) };
         sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\player.png"), get_heap_allocator()) };
@@ -514,37 +542,33 @@ int entry(int argc, char **argv) {
 		}
     }
 
-    //:setup world
-    {	
-        Entity* player_en = entity_create();
-        setup_player(player_en);
-        player_en->pos = v2(0,0);
-        
-        Entity* weapon_en = entity_create();
-        setup_sword(weapon_en);
+    world = alloc(get_heap_allocator(), sizeof(World));
+    memset(world, 0, sizeof(World));
+    setup_world();
 
-        for(int i = 0; i < 10; i++){
-            Entity* monster_en = entity_create();
-            setup_monster(monster_en);
-            monster_en->pos = v2(get_random_int_in_range(5,15) * tile_width, 0);
-            monster_en->pos = v2_rotate_point_around_pivot(monster_en->pos, v2(0,0), get_random_float32_in_range(0,2*PI64)); 
-            monster_en->pos = v2_add(monster_en->pos, player_en->pos);
-            //log("monster pos %f %f", monster_en->pos.x, monster_en->pos.y);
-        }
-
-    }
+    debug_render = true;
+    font = load_font_from_disk(STR("C:/windows/fonts/arial.ttf"), get_heap_allocator());
+	assert(font, "Failed loading arial.ttf, %d", GetLastError());	
+	render_atlas_if_not_yet_rendered(font, 32, 'A');
 
     float64 seconds_counter = 0.0;
     s32 frame_count = 0;
     s32 last_fps = 0;
     float64 last_time = os_get_elapsed_seconds();
     float64 start_time = os_get_elapsed_seconds();
-    world->timer = 0;
     Vector2 camera_pos = v2(0,0);
+    bool reset_world = false;
 
     //:loop
     while (!window.should_close) {
 		reset_temporary_storage();
+
+        if(reset_world){
+            teardown_world();
+            setup_world();
+            reset_world = false;
+        }
+
 		world_frame = (WorldFrame){0};
         float64 now = os_get_elapsed_seconds();
 		float64 delta_t = now - last_time;
@@ -606,6 +630,9 @@ int entry(int argc, char **argv) {
             //check exit cond first
             if (is_key_just_pressed(KEY_ESCAPE)){
                 window.should_close = true;
+            }
+            if (is_key_just_pressed('R')) {
+                reset_world = true;
             }
              
             Vector2 input_axis = v2(0, 0);
@@ -699,7 +726,7 @@ int entry(int argc, char **argv) {
                             }
                             en->pos = v2_add(en->pos, v2_mulf(en->move_vec, en->move_speed * delta_t));
                             
-                            if(world->debug_render){
+                            if(debug_render){
                                 draw_line(en->pos, v2_add(en->pos, v2_mulf(en->move_vec, tile_width)), 1, COLOR_RED);
                             }
 
@@ -716,7 +743,7 @@ int entry(int argc, char **argv) {
                             push_z_layer(layer_text);
                             Matrix4 xform = m4_scalar(1.0);
                             xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
-                            draw_text_xform(world->font, text, font_height, xform, v2(0.1, 0.1), COLOR_YELLOW);
+                            draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), COLOR_YELLOW);
                             pop_z_layer();
 
                             if(
@@ -788,7 +815,7 @@ int entry(int argc, char **argv) {
             push_z_layer(layer_text);
             Matrix4 xform = m4_scalar(1.0);
             xform = m4_translate(xform, v3(screen_width / 4.0, screen_height / 2.0, 0));
-            draw_text_xform(world->font, text, font_height, xform, v2(0.5, 0.5), COLOR_YELLOW);
+            draw_text_xform(font, text, font_height, xform, v2(0.5, 0.5), COLOR_YELLOW);
         }
         else if(world->ux_state == UX_lose){
             string text = STR("You Lose!");
@@ -796,7 +823,7 @@ int entry(int argc, char **argv) {
             push_z_layer(layer_text);
             Matrix4 xform = m4_scalar(1.0);
             xform = m4_translate(xform, v3(screen_width / 4.0, screen_height / 2.0, 0));
-            draw_text_xform(world->font, text, font_height, xform, v2(0.5, 0.5), COLOR_RED);
+            draw_text_xform(font, text, font_height, xform, v2(0.5, 0.5), COLOR_RED);
         }
 
         //:bar rendering
@@ -810,12 +837,12 @@ int entry(int argc, char **argv) {
             xform = m4_translate(xform, v3(30, 0, 0));
             draw_rect_xform(xform, v2(25, 0.5), COLOR_GREY);
             draw_rect_xform(xform, v2((get_player()->health.current / get_player()->health.max) * 25.0f, 0.5), COLOR_GREEN);
-            draw_text_xform(world->font, sprint(temp_allocator, STR("%.0f/%.0f"), get_player()->health.current, get_player()->health.max), font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
+            draw_text_xform(font, sprint(temp_allocator, STR("%.0f/%.0f"), get_player()->health.current, get_player()->health.max), font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
             pop_z_layer();
         }
 
-        //:timer
-        if(world->debug_render){
+        //:world->timer
+        if(debug_render){
             {
                 seconds_counter += delta_t;
                 if(world->ux_state != UX_win && world->ux_state != UX_lose){
@@ -844,7 +871,7 @@ int entry(int argc, char **argv) {
                 push_z_layer(layer_text);
                 Matrix4 xform = m4_scalar(1.0);
                 xform = m4_translate(xform, v3(0,screen_height - (font_height * 0.1), 0));
-                draw_text_xform(world->font, text, font_height, xform, v2(0.1, 0.1), COLOR_RED);
+                draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), COLOR_RED);
             }
         }
 
