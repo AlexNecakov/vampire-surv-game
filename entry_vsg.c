@@ -60,6 +60,7 @@ typedef enum SpriteID {
     SPRITE_nil,
     SPRITE_player,
     SPRITE_monster,
+    SPRITE_experience,
     SPRITE_MAX,
 } SpriteID;
 
@@ -103,6 +104,7 @@ typedef enum EntityArchetype{
     ARCH_monster,
     ARCH_terrain,
     ARCH_weapon,
+    ARCH_pickup,
     ARCH_MAX,
 } EntityArchetype;
 
@@ -303,8 +305,18 @@ void setup_weapon(Entity* en) {
     en->is_line = true;
     en->collider = COLL_rect;
     en->color = COLOR_WHITE;
-    en->size = v2(25,5);
+    en->size = v2(35,2);
     en->power = 500;
+}
+
+void setup_experience(Entity* en) {
+    en->arch = ARCH_pickup;
+    en->collider = COLL_rect;
+    en->color = COLOR_WHITE;
+    en->is_sprite = true;
+    en->sprite_id = SPRITE_experience;
+    Sprite* sprite = get_sprite(en->sprite_id);
+    en->size = get_sprite_size(sprite); 
 }
 
 void setup_wall(Entity* en, Vector2 size) {
@@ -484,6 +496,7 @@ int entry(int argc, char **argv) {
         sprites[0] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\undefined.png"), get_heap_allocator()) };
         sprites[SPRITE_player] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\player.png"), get_heap_allocator()) };
         sprites[SPRITE_monster] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\monster.png"), get_heap_allocator()) };
+        sprites[SPRITE_experience] = (Sprite){.image = load_image_from_disk(fixed_string("res\\sprites\\sword.png"), get_heap_allocator()) };
 		
         for (SpriteID i = 0; i < SPRITE_MAX; i++) {
 			Sprite* sprite = &sprites[i];
@@ -674,6 +687,20 @@ int entry(int argc, char **argv) {
                             if(en->health.current <= 0){
                                 en->color = v4(0,0,0,0);
                                 en->is_valid = false;
+
+                                Entity* pickup_en = entity_create();
+                                setup_experience(pickup_en);
+                                pickup_en->pos = en->pos;
+                            }
+                            break;
+                        case ARCH_pickup:
+		                    set_world_space();
+                            push_z_layer(layer_entity);
+                            render_sprite_entity(en);
+                            if(check_entity_collision(en, get_player())){
+                                get_player()->experience.current++;
+                                en->color = v4(0,0,0,0);
+                                en->is_valid = false;
                             }
                             break;
                         case ARCH_terrain:
@@ -761,13 +788,15 @@ int entry(int argc, char **argv) {
                     last_fps = frame_count;
                     frame_count = 0;
                     seconds_counter = 0.0;
-                    for(int i = 0; i < 15; i++){
-                        Entity* monster_en = entity_create();
-                        setup_monster(monster_en);
-                        monster_en->pos = v2(get_random_int_in_range(5,15) * tile_width, 0);
-                        monster_en->pos = v2_rotate_point_around_pivot(monster_en->pos, v2(0,0), get_random_float32_in_range(0,2*PI64)); 
-                        monster_en->pos = v2_add(monster_en->pos, get_player()->pos);
-                        //log("monster pos %f %f", monster_en->pos.x, monster_en->pos.y);
+                    if(world->ux_state != UX_lose){
+                        for(int i = 0; i < 15; i++){
+                            Entity* monster_en = entity_create();
+                            setup_monster(monster_en);
+                            monster_en->pos = v2(get_random_int_in_range(5,15) * tile_width, 0);
+                            monster_en->pos = v2_rotate_point_around_pivot(monster_en->pos, v2(0,0), get_random_float32_in_range(0,2*PI64)); 
+                            monster_en->pos = v2_add(monster_en->pos, get_player()->pos);
+                            //log("monster pos %f %f", monster_en->pos.x, monster_en->pos.y);
+                        }
                     }
 
                 }
