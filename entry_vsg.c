@@ -51,6 +51,15 @@ float sin_breathe(float time, float rate) {
 bool almost_equals(float a, float b, float epsilon) {
  return fabs(a - b) <= epsilon;
 }
+
+bool get_random_bool() {
+	return get_random_int_in_range(0, 1);
+}
+
+int get_random_sign() {
+	return (get_random_int_in_range(0, 1) == 0 ? -1 : 1);
+}
+
 //:sprite
 typedef struct Sprite {
     Gfx_Image* image;
@@ -300,7 +309,7 @@ void setup_monster(Entity* en) {
     en->power = 25;
 }
 
-void setup_weapon(Entity* en) {
+void setup_sword(Entity* en) {
     en->arch = ARCH_weapon;
     en->is_line = true;
     en->collider = COLL_rect;
@@ -512,7 +521,7 @@ int entry(int argc, char **argv) {
         player_en->pos = v2(0,0);
         
         Entity* weapon_en = entity_create();
-        setup_weapon(weapon_en);
+        setup_sword(weapon_en);
 
         for(int i = 0; i < 10; i++){
             Entity* monster_en = entity_create();
@@ -702,6 +711,25 @@ int entry(int argc, char **argv) {
                                 setup_experience(pickup_en);
                                 pickup_en->pos = en->pos;
                             }
+
+                            string text = sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y);
+                            push_z_layer(layer_text);
+                            Matrix4 xform = m4_scalar(1.0);
+                            xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
+                            draw_text_xform(world->font, text, font_height, xform, v2(0.1, 0.1), COLOR_YELLOW);
+                            pop_z_layer();
+
+                            if(
+                                en->pos.x - camera_pos.x < -screen_width * 2 || 
+                                en->pos.y - camera_pos.y < -screen_height * 2 ||
+                                en->pos.x - camera_pos.x > screen_width * 2 ||
+                                en->pos.y - camera_pos.y > screen_height * 2
+                            )
+                            {
+                                en->color = v4(0,0,0,0);
+                                en->is_valid = false;
+                                log("destroyed offscreen monster at screen pos %f %f", en->pos.x, en->pos.y);
+                            } 
                             break;
                         case ARCH_pickup:
 		                    set_world_space();
