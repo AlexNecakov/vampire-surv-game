@@ -81,6 +81,13 @@ Vector2 get_sprite_size(Sprite* sprite) {
 	return (Vector2) { sprite->image->width, sprite->image->height };
 }
 
+//:bar
+typedef struct Bar {
+    float64 max;
+    float64 current;
+    float64 rate;
+} Bar;
+
 //:ux state
 typedef enum UXState {
 	UX_nil,
@@ -119,9 +126,10 @@ typedef struct Entity{
     CollisionBox collider;
     bool is_static;
     Vector2 move_vec;
-    float health;
+    Bar health;
     float power;
     float move_speed;
+    Bar experience;
 } Entity;
 
 Vector2 get_entity_midpoint(Entity* en){
@@ -270,7 +278,10 @@ void setup_player(Entity* en) {
     en->collider = COLL_rect;
     en->color = COLOR_WHITE;
     en->move_speed = 150.0;
-    en->health = 100;
+    en->health.max = 100;
+    en->health.current = en->health.max;
+    en->experience.max = 100;
+    en->experience.current = 0;
 }
 
 void setup_monster(Entity* en) {
@@ -282,7 +293,8 @@ void setup_monster(Entity* en) {
     en->collider = COLL_rect;
     en->color = COLOR_WHITE;
     en->move_speed = 25;
-    en->health = 50;
+    en->health.max = 50;
+    en->health.current = en->health.max;
     en->power = 25;
 }
 
@@ -525,7 +537,7 @@ int entry(int argc, char **argv) {
                 entity_destroy(en);
             }
             else if (en->is_valid && en->arch == ARCH_player) {
-                if(en->health < 0){
+                if(en->health.current < 0){
                     world->ux_state = UX_lose;
                 }
 				world_frame.player = en;
@@ -605,9 +617,19 @@ int entry(int argc, char **argv) {
                             push_z_layer(layer_entity);
                             en->pos = v2_add(en->pos, v2_mulf(en->move_vec, en->move_speed * delta_t));
                             render_sprite_entity(en);
-                            if(en->health <= 0){
+                            if(en->health.current <= 0){
                                 en->color = v4(0,0,0,0);
                             }
+                            //:hp
+                            {    
+                                push_z_layer(layer_ui_fg);
+                                Matrix4 xform = m4_scalar(1.0);
+                                xform = m4_translate(xform, v3(get_player()->pos.x, get_player()->pos.y, 0)); 
+                                draw_rect_xform(xform, v2(10, -5), COLOR_RED);
+                                draw_rect_xform(xform, v2((get_player()->health.current / get_player()->health.max) * 10.0f, -5), COLOR_GREEN);
+                                pop_z_layer();
+                            }
+
                             break;
                         case ARCH_weapon:
 		                    set_world_space();
@@ -617,7 +639,7 @@ int entry(int argc, char **argv) {
                                 if(i != j){
                                     if(other_en->arch == ARCH_monster){
                                         if(check_entity_collision(en, other_en)){
-                                            other_en->health -= (en->power * delta_t);
+                                            other_en->health.current -= (en->power * delta_t);
                                         }
                                     }
                                 }
@@ -638,7 +660,7 @@ int entry(int argc, char **argv) {
                                     }
                                     else if(other_en->arch == ARCH_player){
                                         if(check_entity_collision(en, other_en)){
-                                            other_en->health -= (en->power * delta_t);
+                                            other_en->health.current -= (en->power * delta_t);
                                         }
                                     }
                                 }
@@ -649,7 +671,7 @@ int entry(int argc, char **argv) {
                                 draw_line(en->pos, v2_add(en->pos, v2_mulf(en->move_vec, tile_width)), 1, COLOR_RED);
                             }
 
-                            if(en->health <= 0){
+                            if(en->health.current <= 0){
                                 en->color = v4(0,0,0,0);
                                 en->is_valid = false;
                             }
@@ -710,6 +732,21 @@ int entry(int argc, char **argv) {
             Matrix4 xform = m4_scalar(1.0);
             xform = m4_translate(xform, v3(screen_width / 4.0, screen_height / 2.0, 0));
             draw_text_xform(world->font, text, font_height, xform, v2(0.5, 0.5), COLOR_RED);
+        }
+
+        //:bar rendering
+        {    
+            set_screen_space();
+            push_z_layer(layer_ui_fg);
+            Matrix4 xform = m4_scalar(1.0);
+            xform = m4_translate(xform, v3(0, screen_height - 10, 0)); 
+            draw_rect_xform(xform, v2(screen_width, 10), COLOR_GREY);
+            draw_rect_xform(xform, v2((get_player()->experience.current / get_player()->experience.max) * screen_width, 10), COLOR_RED);
+            xform = m4_translate(xform, v3(30, 0, 0));
+            draw_rect_xform(xform, v2(25, 0.5), COLOR_GREY);
+            draw_rect_xform(xform, v2((get_player()->health.current / get_player()->health.max) * 25.0f, 0.5), COLOR_GREEN);
+            draw_text_xform(world->font, sprint(temp_allocator, STR("%.0f/%.0f"), get_player()->health.current, get_player()->health.max), font_height, xform, v2(0.1, 0.1), COLOR_WHITE);
+            pop_z_layer();
         }
 
         //:timer
