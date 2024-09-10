@@ -1,6 +1,16 @@
 //constants
 #define MAX_ENTITY_COUNT 1024
 
+#define PI32 3.14159265359f
+#define PI64 3.14159265358979323846
+#define TAU32 (2.0f * PI32)
+#define TAU64 (2.0 * PI64)
+#define RAD_PER_DEG (PI64 / 180.0)
+#define DEG_PER_RAD (180.0 / PI64)
+
+#define to_radians(degrees) ((degrees)*RAD_PER_DEG)
+#define to_degrees(radians) ((radians)*DEG_PER_RAD)
+
 #define clamp_bottom(a, b) max(a, b)
 #define clamp_top(a, b) min(a, b)
 
@@ -137,9 +147,11 @@ typedef struct Entity{
     Vector2 pos;
     Vector2 size;
     Vector4 color;
+    float angle;
     CollisionBox collider;
     bool is_static;
     Vector2 move_vec;
+    Vector2 input_axis;
     Bar health;
     float power;
     float move_speed;
@@ -396,6 +408,15 @@ void render_rect_entity(Entity* en){
     }
 }
 
+void render_line_entity(Entity* en){
+    if(en->is_valid){
+        Vector2 endpoint = v2_add(en->pos, v2(en->size.x, 0));
+        endpoint = v2_rotate_point_around_pivot(endpoint, en->pos, to_radians(en->angle));
+        log("angle %f rads %f", en->angle, to_radians(en->angle));
+        draw_line(en->pos, endpoint, en->size.y, en->color); 
+    }
+}
+
 //:coordinate conversion
 void set_screen_space() {
 	draw_frame.camera_xform = m4_scalar(1.0);
@@ -635,25 +656,29 @@ int entry(int argc, char **argv) {
                 reset_world = true;
             }
              
-            Vector2 input_axis = v2(0, 0);
+            get_player()->input_axis = v2(0, 0);
             if(world->ux_state != UX_win && world->ux_state != UX_lose){
                 if (is_key_down('A')) {
-                    input_axis.x -= 1.0;
+                    get_player()->input_axis.x -= 1.0;
                 }
                 if (is_key_down('D')) {
-                    input_axis.x += 1.0;
+                    get_player()->input_axis.x += 1.0;
                 }
                 if (is_key_down('S')) {
-                    input_axis.y -= 1.0;
+                    get_player()->input_axis.y -= 1.0;
                 }
                 if (is_key_down('W')) {
-                    input_axis.y += 1.0;
+                    get_player()->input_axis.y += 1.0;
                 }
             }
 
-            input_axis = v2_normalize(input_axis);
-            get_player()->move_vec = input_axis;
+            get_player()->input_axis = v2_normalize(get_player()->input_axis);
+            get_player()->move_vec = get_player()->input_axis;
 
+            float uDotV = v2_dot(v2(1,0), get_player()->input_axis);
+            float uDetV = get_player()->input_axis.y*1 - get_player()->input_axis.x*0;
+            float angle = to_degrees(atan2(uDetV, uDotV)); 
+            get_player()->angle = angle;
         }
 
         //:entity loop 
@@ -694,8 +719,8 @@ int entry(int argc, char **argv) {
                                     }
                                 }
                             }
-                            en->pos = v2_mulf(get_player()->move_vec, en->size.x);
-                            en->pos = v2_add(en->pos, get_player()->pos);
+                            en->pos = get_player()->pos;
+                            en->angle = get_player()->angle;
 
                             if(get_player()->experience.current >= get_player()->experience.max){
                                 get_player()->experience.current = 0;
@@ -704,7 +729,7 @@ int entry(int argc, char **argv) {
                                 get_player()->health.current = get_player()->health.max;
                                 en->size = v2(en->size.x * 1.1, en->size.y);
                             }
-                            render_rect_entity(en);
+                            render_line_entity(en);
                             break;
                         case ARCH_monster:
 		                    set_world_space();
@@ -755,7 +780,7 @@ int entry(int argc, char **argv) {
                             {
                                 en->color = v4(0,0,0,0);
                                 en->is_valid = false;
-                                log("destroyed offscreen monster at screen pos %f %f", en->pos.x, en->pos.y);
+                                //log("destroyed offscreen monster at screen pos %f %f", en->pos.x, en->pos.y);
                             } 
                             break;
                         case ARCH_pickup:
