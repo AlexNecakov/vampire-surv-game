@@ -1030,8 +1030,8 @@ int entry(int argc, char **argv) {
                     }
 
                 }
-                string text = STR("fps: %i time: %.2f health: %.2f");
-                text = sprint(temp_allocator, text, last_fps, world->timer, get_player()->health);
+                string text = STR("fps: %i time: %.2f");
+                text = sprint(temp_allocator, text, last_fps, world->timer);
                 set_screen_space();
                 push_z_layer(layer_text);
                 Matrix4 xform = m4_scalar(1.0);
