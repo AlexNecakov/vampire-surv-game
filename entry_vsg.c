@@ -57,6 +57,17 @@ inline float v2_dist(Vector2 a, Vector2 b) {
     return v2_length(v2_sub(a, b));
 }
 
+float v2_det(Vector2 a, Vector2 b){
+    return (a.x * b.y - b.x * a.y);
+}
+
+float v2_angle(Vector2 a, Vector2 b){
+    float uDotV = v2_dot(a, b);
+    float uDetV = v2_det(a, b);
+    float angle = to_degrees(atan2(uDetV, uDotV)); 
+    return angle;
+}
+
 float sin_breathe(float time, float rate) {
 	return (sin(time * rate) + 1.0) / 2.0;
 }
@@ -132,6 +143,7 @@ typedef enum EntityArchetype{
 
 typedef enum CollisionBox{
     COLL_nil = 0,
+    COLL_line,
     COLL_rect,
     COLL_circ,
     COLL_complex,
@@ -166,7 +178,10 @@ Vector2 get_entity_midpoint(Entity* en){
 bool check_entity_collision(Entity* en_1, Entity* en_2){
     bool collision_detected = false;
     if(en_1->is_valid && en_2 -> is_valid){
-        if(en_1->collider == COLL_rect && en_2->collider == COLL_rect){
+        if(
+            en_1->collider == COLL_rect && 
+            en_2->collider == COLL_rect
+        ){
             if(
                 en_1->pos.x < en_2->pos.x + en_2->size.x &&
                 en_1->pos.x + en_1->size.x > en_2->pos.x &&
@@ -175,6 +190,12 @@ bool check_entity_collision(Entity* en_1, Entity* en_2){
             ){
                 collision_detected = true;
             }
+        }
+        else if(
+            en_1->collider == COLL_line &&
+            en_2->collider == COLL_line
+        ){
+
         }
     }
     return collision_detected;
@@ -674,11 +695,7 @@ int entry(int argc, char **argv) {
 
             get_player()->input_axis = v2_normalize(get_player()->input_axis);
             get_player()->move_vec = get_player()->input_axis;
-
-            float uDotV = v2_dot(v2(1,0), get_player()->input_axis);
-            float uDetV = get_player()->input_axis.y*1 - get_player()->input_axis.x*0;
-            float angle = to_degrees(atan2(uDetV, uDotV)); 
-            get_player()->angle = angle;
+            get_player()->angle = v2_angle(v2(1,0), get_player()->input_axis);
         }
 
         //:entity loop 
