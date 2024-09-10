@@ -408,16 +408,27 @@ void setup_monster(Entity* en) {
     en->move_speed = 25;
     en->health.max = 50;
     en->health.current = en->health.max;
-    en->power = 25;
+    en->power = 100;
 }
 
 void setup_sword(Entity* en) {
+    en->arch = ARCH_weapon;
+    en->is_line = true;
+    en->is_attached_to_player = true;
+    en->collider = COLL_line;
+    en->color = COLOR_WHITE;
+    en->size = v2(35,2);
+    en->power = 500;
+}
+
+void setup_bullet(Entity* en) {
     en->arch = ARCH_weapon;
     en->is_line = true;
     en->collider = COLL_line;
     en->color = COLOR_WHITE;
     en->size = v2(35,2);
     en->power = 500;
+    en->move_speed = 250;
 }
 
 void setup_experience(Entity* en) {
@@ -804,15 +815,20 @@ int entry(int argc, char **argv) {
                                     }
                                 }
                             }
-                            en->pos = get_player()->pos;
-                            en->angle = get_player()->angle;
+                            if(en->is_attached_to_player){
+                                en->pos = get_entity_midpoint(get_player());
+                                en->angle = get_player()->angle;
+                            }
+                            else{
+                                en->pos = v2_add(en->pos, v2_mulf(en->move_vec, en->move_speed * delta_t));
+                            }
 
                             if(get_player()->experience.current >= get_player()->experience.max){
                                 get_player()->experience.current = 0;
                                 get_player()->experience.max = get_player()->experience.max * 1.1;
-                                get_player()->health.max = get_player()->health.max * 1.1;
+                                get_player()->health.max = get_player()->health.max * 1.05;
                                 get_player()->health.current = get_player()->health.max;
-                                en->size = v2(en->size.x * 1.1, en->size.y);
+                                en->size = v2(en->size.x * 1.01, en->size.y);
                             }
                             render_line_entity(en);
                             break;
@@ -951,7 +967,7 @@ int entry(int argc, char **argv) {
             pop_z_layer();
         }
 
-        //:world->timer
+        //:timer
         if(debug_render){
             {
                 seconds_counter += delta_t;
@@ -964,13 +980,18 @@ int entry(int argc, char **argv) {
                     frame_count = 0;
                     seconds_counter = 0.0;
                     if(world->ux_state != UX_lose){
-                        for(int i = 0; i < 15; i++){
+                        for(int i = 0; i < 40; i++){
                             Entity* monster_en = entity_create();
                             setup_monster(monster_en);
                             monster_en->pos = v2(get_random_int_in_range(5,15) * tile_width, 0);
                             monster_en->pos = v2_rotate_point_around_pivot(monster_en->pos, v2(0,0), get_random_float32_in_range(0,2*PI64)); 
                             monster_en->pos = v2_add(monster_en->pos, get_player()->pos);
-                            //log("monster pos %f %f", monster_en->pos.x, monster_en->pos.y);
+                        }
+                        for(int i = 0; i < 15; i++){
+                            Entity* bullet_en = entity_create();
+                            setup_bullet(bullet_en);
+                            bullet_en->move_vec = v2_rotate_point_around_pivot(v2(1,0), v2(0,0), get_random_float32_in_range(0,2*PI64)); 
+                            bullet_en->pos = v2_add(bullet_en->pos, get_player()->pos);
                         }
                     }
 
