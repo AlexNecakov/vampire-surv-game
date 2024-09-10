@@ -180,6 +180,26 @@ Vector2 get_line_endpoint(Vector2 origin, float r, float radians){
     return endpoint;
 }
 
+Vector3 get_line_intersection(Vector2 v1_start, Vector2 v1_end, Vector2 v2_start, Vector2 v2_end){
+    float uA = 
+        ((v2_end.x - v2_start.x)*(v1_start.y - v2_start.y) - (v2_end.y - v2_start.y)*(v1_start.x - v2_start.x)) / 
+        ((v2_end.y - v2_start.y)*(v1_end.x - v1_start.x) - (v2_end.x - v2_start.x)*(v1_end.y - v1_start.y));
+    float uB = 
+        ((v1_end.x-v1_start.x)*(v1_start.y-v2_start.y) - (v1_end.y-v1_start.y)*(v1_start.x-v2_start.x)) / 
+        ((v2_end.y-v2_start.y)*(v1_end.x-v1_start.x) - (v2_end.x-v2_start.x)*(v1_end.y-v1_start.y));
+    if (uA >= 0 && uA <= 1 && uB >= 0 && uB <= 1) {
+        //point of intersection in 2d with bool found value as z
+        float intersectionX = v1_start.x + (uA * (v1_end.x-v1_start.x));
+        float intersectionY = v1_start.y + (uA * (v1_end.y-v1_start.y));
+        return v3(intersectionX, intersectionY, 1);
+    }
+    else{
+        // z value is bool intersection found
+        return v3(0,0,0);
+    }
+
+}
+
 //:collision
 bool check_entity_collision(Entity* en_1, Entity* en_2){
     bool collision_detected = false;
@@ -203,16 +223,45 @@ bool check_entity_collision(Entity* en_1, Entity* en_2){
         ){
             Vector2 end_1 = get_line_endpoint(en_1->pos, en_1->size.x, to_radians(en_1->angle)); 
             Vector2 end_2 = get_line_endpoint(en_2->pos, en_2->size.x, to_radians(en_2->angle)); 
-            float uA = ((end_2.x - en_2->pos.x)*(en_1->pos.y - en_2->pos.y) - (end_2.y - en_2->pos.y) * (en_1->pos.x - en_2->pos.x)) / ((end_2.y - en_2->pos.y) * (end_1.x - en_1->pos.x) - (end_2.x - en_2->pos.x) * (end_1.y - en_1->pos.y));
-            float uB = ((end_1.x-en_1->pos.x)*(en_1->pos.y-en_2->pos.y) - (end_1.y-en_1->pos.y)*(en_1->pos.x-en_2->pos.x)) / ((end_2.y-en_2->pos.y)*(end_1.x-en_1->pos.x) - (end_2.x-en_2->pos.x)*(end_1.y-en_1->pos.y));
-            if (uA >= 0 && uA <= 1 && uB >= 0 && uB <= 1) {
-                //point of intersection
-                float intersectionX = en_1->pos.x + (uA * (end_1.x-en_1->pos.x));
-                float intersectionY = en_1->pos.y + (uA * (end_1.y-en_1->pos.y));
-
+            if(get_line_intersection(en_1->pos, end_1, en_2->pos, end_2).z){
                 collision_detected = true;
             }
-
+        }
+        else if(
+            en_1->collider == COLL_line &&
+            en_2->collider == COLL_rect
+        ){
+            Vector2 end_1 = get_line_endpoint(en_1->pos, en_1->size.x, to_radians(en_1->angle)); 
+            if(get_line_intersection(en_1->pos, end_1, en_2->pos, v2(en_2->pos.x + en_2->size.x, en_2->pos.y)).z){
+                collision_detected = true;
+            }
+            if(get_line_intersection(en_1->pos, end_1, en_2->pos, v2(en_2->pos.x, en_2->pos.y + en_2->size.y)).z){
+                collision_detected = true;
+            }
+            if(get_line_intersection(en_1->pos, end_1, v2(en_2->pos.x + en_2->size.x, en_2->pos.y), v2(en_2->pos.x + en_2->size.x, en_2->pos.y + en_2->size.y)).z){
+                collision_detected = true;
+            }
+            if(get_line_intersection(en_1->pos, end_1, v2(en_2->pos.x, en_2->pos.y + en_2->size.y), v2(en_2->pos.x + en_2->size.x, en_2->pos.y + en_2->size.y)).z){
+                collision_detected = true;
+            }
+        }
+        else if(
+            en_1->collider == COLL_rect &&
+            en_2->collider == COLL_line
+        ){
+            Vector2 end_2 = get_line_endpoint(en_2->pos, en_2->size.x, to_radians(en_2->angle)); 
+            if(get_line_intersection(en_2->pos, end_2, en_1->pos, v2(en_1->pos.x + en_1->size.x, en_1->pos.y)).z){
+                collision_detected = true;
+            }
+            if(get_line_intersection(en_2->pos, end_2, en_1->pos, v2(en_1->pos.x, en_1->pos.y + en_1->size.y)).z){
+                collision_detected = true;
+            }
+            if(get_line_intersection(en_2->pos, end_2, v2(en_1->pos.x + en_1->size.x, en_1->pos.y), v2(en_1->pos.x + en_1->size.x, en_1->pos.y + en_1->size.y)).z){
+                collision_detected = true;
+            }
+            if(get_line_intersection(en_2->pos, end_2, v2(en_1->pos.x, en_1->pos.y + en_1->size.y), v2(en_1->pos.x + en_1->size.x, en_1->pos.y + en_1->size.y)).z){
+                collision_detected = true;
+            }
         }
     }
     return collision_detected;
