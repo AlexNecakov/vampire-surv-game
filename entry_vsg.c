@@ -414,7 +414,7 @@ void setup_monster(Entity* en) {
 void setup_sword(Entity* en) {
     en->arch = ARCH_weapon;
     en->is_line = true;
-    en->collider = COLL_rect;
+    en->collider = COLL_line;
     en->color = COLOR_WHITE;
     en->size = v2(35,2);
     en->power = 500;
@@ -761,7 +761,9 @@ int entry(int argc, char **argv) {
 
             get_player()->input_axis = v2_normalize(get_player()->input_axis);
             get_player()->move_vec = get_player()->input_axis;
-            get_player()->angle = v2_angle(v2(1,0), get_player()->input_axis);
+            if(v2_length(get_player()->input_axis) != 0){
+                get_player()->angle = v2_angle(v2(1,0), get_player()->input_axis);
+            }
         }
 
         //:entity loop 
@@ -851,7 +853,7 @@ int entry(int argc, char **argv) {
                             push_z_layer(layer_text);
                             Matrix4 xform = m4_scalar(1.0);
                             xform = m4_translate(xform, v3(en->pos.x, en->pos.y, 0));
-                            draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), COLOR_YELLOW);
+                            //draw_text_xform(font, text, font_height, xform, v2(0.1, 0.1), COLOR_YELLOW);
                             pop_z_layer();
 
                             if(
