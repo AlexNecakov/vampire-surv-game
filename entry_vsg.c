@@ -174,6 +174,12 @@ Vector2 get_entity_midpoint(Entity* en){
     return v2(en->pos.x + en->size.x/2.0, en->pos.y + en->size.y/2.0);
 }
 
+Vector2 get_line_endpoint(Vector2 origin, float r, float radians){
+    Vector2 endpoint = v2_add(origin, v2(r, 0));
+    endpoint = v2_rotate_point_around_pivot(endpoint, origin, radians);
+    return endpoint;
+}
+
 //:collision
 bool check_entity_collision(Entity* en_1, Entity* en_2){
     bool collision_detected = false;
@@ -195,6 +201,17 @@ bool check_entity_collision(Entity* en_1, Entity* en_2){
             en_1->collider == COLL_line &&
             en_2->collider == COLL_line
         ){
+            Vector2 end_1 = get_line_endpoint(en_1->pos, en_1->size.x, to_radians(en_1->angle)); 
+            Vector2 end_2 = get_line_endpoint(en_2->pos, en_2->size.x, to_radians(en_2->angle)); 
+            float uA = ((end_2.x - en_2->pos.x)*(en_1->pos.y - en_2->pos.y) - (end_2.y - en_2->pos.y) * (en_1->pos.x - en_2->pos.x)) / ((end_2.y - en_2->pos.y) * (end_1.x - en_1->pos.x) - (end_2.x - en_2->pos.x) * (end_1.y - en_1->pos.y));
+            float uB = ((end_1.x-en_1->pos.x)*(en_1->pos.y-en_2->pos.y) - (end_1.y-en_1->pos.y)*(en_1->pos.x-en_2->pos.x)) / ((end_2.y-en_2->pos.y)*(end_1.x-en_1->pos.x) - (end_2.x-en_2->pos.x)*(end_1.y-en_1->pos.y));
+            if (uA >= 0 && uA <= 1 && uB >= 0 && uB <= 1) {
+                //point of intersection
+                float intersectionX = en_1->pos.x + (uA * (end_1.x-en_1->pos.x));
+                float intersectionY = en_1->pos.y + (uA * (end_1.y-en_1->pos.y));
+
+                collision_detected = true;
+            }
 
         }
     }
@@ -204,6 +221,7 @@ bool check_entity_collision(Entity* en_1, Entity* en_2){
 bool check_entity_will_collide(Entity* en_1, Entity* en_2, float64 delta_t){
     bool collision_detected = false;
 
+    //check next frame based on current move vecs
     en_1->pos = v2_add(en_1->pos, v2_mulf(en_1->move_vec, en_1->move_speed * delta_t));
     en_2->pos = v2_add(en_2->pos, v2_mulf(en_2->move_vec, en_2->move_speed * delta_t));
     collision_detected = check_entity_collision(en_1, en_2);
@@ -429,11 +447,10 @@ void render_rect_entity(Entity* en){
     }
 }
 
+
 void render_line_entity(Entity* en){
     if(en->is_valid){
-        Vector2 endpoint = v2_add(en->pos, v2(en->size.x, 0));
-        endpoint = v2_rotate_point_around_pivot(endpoint, en->pos, to_radians(en->angle));
-        log("angle %f rads %f", en->angle, to_radians(en->angle));
+        Vector2 endpoint = get_line_endpoint(en->pos, en->size.x, to_radians(en->angle));
         draw_line(en->pos, endpoint, en->size.y, en->color); 
     }
 }
