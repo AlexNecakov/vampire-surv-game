@@ -84,6 +84,11 @@ int get_random_sign() {
 	return (get_random_int_in_range(0, 1) == 0 ? -1 : 1);
 }
 
+// 0.2 means it has a 20% chance of returning true
+bool pct_chance(float pct) {
+	return get_random_float32_in_range(0, 1) < pct;
+}
+
 //:sprite
 typedef struct Sprite {
     Gfx_Image* image;
@@ -141,13 +146,14 @@ typedef enum EntityArchetype{
     ARCH_MAX,
 } EntityArchetype;
 
-typedef enum CollisionBox{
+typedef enum Collider{
     COLL_nil = 0,
+    COLL_point,
     COLL_line,
     COLL_rect,
     COLL_circ,
     COLL_complex,
-} CollisionBox;
+} Collider;
 
 typedef struct Entity{
     bool is_valid;
@@ -160,7 +166,7 @@ typedef struct Entity{
     Vector2 size;
     Vector4 color;
     float angle;
-    CollisionBox collider;
+    Collider collider;
     bool is_static;
     Vector2 move_vec;
     Vector2 input_axis;
@@ -260,6 +266,32 @@ bool check_entity_collision(Entity* en_1, Entity* en_2){
                 collision_detected = true;
             }
             if(get_line_intersection(en_2->pos, end_2, v2(en_1->pos.x, en_1->pos.y + en_1->size.y), v2(en_1->pos.x + en_1->size.x, en_1->pos.y + en_1->size.y)).z){
+                collision_detected = true;
+            }
+        }
+        else if(
+            en_1->collider == COLL_point &&
+            en_2->collider == COLL_rect
+        ){
+            if (
+                en_1->pos.x >= en_2->pos.x &&
+                en_1->pos.x <= en_2->pos.x + en_2->size.x &&
+                en_1->pos.y >= en_2->pos.y &&
+                en_1->pos.y <= en_2->pos.y + en_2->size.y
+            ){
+                collision_detected = true;
+            }
+        }
+        else if(
+            en_2->collider == COLL_point &&
+            en_1->collider == COLL_rect
+        ){
+            if (
+                en_2->pos.x >= en_1->pos.x &&
+                en_2->pos.x <= en_1->pos.x + en_1->size.x &&
+                en_2->pos.y >= en_1->pos.y &&
+                en_2->pos.y <= en_1->pos.y + en_1->size.y
+            ){
                 collision_detected = true;
             }
         }
@@ -424,9 +456,9 @@ void setup_sword(Entity* en) {
 void setup_bullet(Entity* en) {
     en->arch = ARCH_weapon;
     en->is_line = true;
-    en->collider = COLL_line;
+    en->collider = COLL_point;
     en->color = COLOR_WHITE;
-    en->size = v2(35,2);
+    en->size = v2(2,2);
     en->power = 500;
     en->move_speed = 250;
 }
@@ -860,9 +892,11 @@ int entry(int argc, char **argv) {
                                 en->color = v4(0,0,0,0);
                                 en->is_valid = false;
 
-                                Entity* pickup_en = entity_create();
-                                setup_experience(pickup_en);
-                                pickup_en->pos = en->pos;
+                                if(pct_chance(0.2)){
+                                    Entity* pickup_en = entity_create();
+                                    setup_experience(pickup_en);
+                                    pickup_en->pos = en->pos;
+                                }
                             }
 
                             string text = sprint(temp_allocator, STR("%f %f"), en->pos.x, en->pos.y);
