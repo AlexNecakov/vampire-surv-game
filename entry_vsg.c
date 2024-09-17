@@ -1,5 +1,5 @@
 //constants
-#define MAX_ENTITY_COUNT 1024
+#define MAX_ENTITY_COUNT 10240
 
 #define PI32 3.14159265359f
 #define PI64 3.14159265358979323846
@@ -1024,6 +1024,7 @@ int entry(int argc, char **argv) {
                         for(int i = 0; i < 15; i++){
                             Entity* bullet_en = entity_create();
                             setup_bullet(bullet_en);
+                            play_one_audio_clip(fixed_string("res\\sound\\shot_01.wav"));
                             bullet_en->move_vec = v2_rotate_point_around_pivot(v2(1,0), v2(0,0), get_random_float32_in_range(0,2*PI64)); 
                             bullet_en->pos = v2_add(bullet_en->pos, get_player()->pos);
                         }
