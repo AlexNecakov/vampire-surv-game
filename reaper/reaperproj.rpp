@@ -1,4 +1,4 @@
-<REAPER_PROJECT 0.1 "7.18/win64" 1726568236
+<REAPER_PROJECT 0.1 "7.18/win64" 1726570801
   <NOTES 0 2
   >
   RIPPLE 0
@@ -18,9 +18,9 @@
   VIDEO_CONFIG 0 0 256
   PANMODE 3
   PANLAWFLAGS 3
-  CURSOR 193
-  ZOOM 100 18747 0
-  VZOOMEX 6 0
+  CURSOR 6
+  ZOOM 90.37686921366716 0 0
+  VZOOMEX 8.77274227 0
   USE_REC_CFG 0
   RECMODE 1
   SMPTESYNC 0 30 100 40 1000 300 0 0 1 0 0
@@ -32,11 +32,10 @@
   >
   <APPLYFX_CFG
   >
-  RENDER_FILE ""
-  RENDER_PATTERN untitled
-  RENDER_FMT 0 2 0
+  RENDER_FILE "../res/sound\pickup.wav"
+  RENDER_FMT 0 2 44100
   RENDER_1X 0
-  RENDER_RANGE 1 0 0 18 1000
+  RENDER_RANGE 2 0 0 18 1000
   RENDER_RESAMPLE 3 0 1
   RENDER_ADDTOPROJ 0
   RENDER_STEMS 0
@@ -62,8 +61,8 @@
   GLOBAL_AUTO -1
   TEMPO 120 4 4
   PLAYRATE 1 0 0.25 4
-  SELECTION 195 193
-  SELECTION2 195 193
+  SELECTION 6.5 7
+  SELECTION2 6.5 7
   MASTERAUTOMODE 0
   MASTERTRACKHEIGHT 0 0
   MASTERPEAKCOL 16576
@@ -108,7 +107,7 @@
     BUSCOMP 0 0 0 0 0
     SHOWINMIX 1 0.6667 0.5 1 0.5 0 0 0
     FIXEDLANES 9 0 0 0 0
-    SEL 0
+    SEL 1
     REC 0 0 1 0 0 0 0 0
     VU 2
     TRACKHEIGHT 0 0 0 0 0 0 0
@@ -120,7 +119,7 @@
     MIDIOUT -1
     MAINSEND 1 0
     <ITEM
-      POSITION 193.5
+      POSITION 0.5
       SNAPOFFS 0
       LENGTH 0.61866666666667
       LOOP 1
@@ -141,6 +140,50 @@
         FILE "C:\res\Sonniss.com - GDC - Game Audio Bundle\TheLibrarybyEmptySea - Robobiotics\TheLibrarybyMTC_Robo_LaserBlast_Medium_027.wav"
       >
     >
+    <ITEM
+      POSITION 4
+      SNAPOFFS 0
+      LENGTH 1
+      LOOP 1
+      ALLTAKES 0
+      FADEIN 1 0 0 1 0 0 0
+      FADEOUT 1 0.01 0 1 0 0 0
+      MUTE 0 0
+      SEL 0
+      IGUID {E23715D2-022C-45F1-945F-600D3DCDA560}
+      IID 11
+      NAME 0003_Shotgun_Fire_3.wav
+      VOLPAN 1 0 1 -1
+      SOFFS 0
+      PLAYRATE 1 1 0 -1 0 0.0025
+      CHANMODE 0
+      GUID {39901D3C-1832-4D51-A07C-C1BF9740BDE5}
+      <SOURCE WAVE
+        FILE "Media\0003_Shotgun_Fire_3.wav"
+      >
+    >
+    <ITEM
+      POSITION 6.5
+      SNAPOFFS 0
+      LENGTH 0.21333333333333
+      LOOP 1
+      ALLTAKES 0
+      FADEIN 1 0 0 1 0 0 0
+      FADEOUT 1 0 0 1 0 0 0
+      MUTE 0 0
+      SEL 0
+      IGUID {50C3D764-7B24-496A-B072-1395F8F76C9D}
+      IID 24
+      NAME SW001_8-Bit-Games-163_Pickup_Coin.wav
+      VOLPAN 1 0 1 -1
+      SOFFS 0
+      PLAYRATE 1 1 0 -1 0 0.0025
+      CHANMODE 0
+      GUID {3CC3478C-1BA4-43D3-8A33-88ED16B668EC}
+      <SOURCE WAVE
+        FILE "Media\SW001_8-Bit-Games-163_Pickup_Coin.wav"
+      >
+    >
   >
   <TRACK {1FEF0AD7-154B-4185-8C96-9244B3ADDF5B}
     NAME CK_Blaster_Shot-226
@@ -156,7 +199,7 @@
     BUSCOMP 0 0 0 0 0
     SHOWINMIX 1 0.6667 0.5 1 0.5 0 0 0
     FIXEDLANES 9 0 0 0 0
-    SEL 1
+    SEL 0
     REC 0 0 1 0 0 0 0 0
     VU 2
     TRACKHEIGHT 0 0 0 0 0 0 0
@@ -168,13 +211,13 @@
     MIDIOUT -1
     MAINSEND 1 0
     <ITEM
-      POSITION 193.5
+      POSITION 0.5
       SNAPOFFS 0
-      LENGTH 1.55060416666667
+      LENGTH 1
       LOOP 1
       ALLTAKES 0
       FADEIN 1 0 0 1 0 0 0
-      FADEOUT 1 0 0 1 0 0 0
+      FADEOUT 1 0.01 0 1 0 0 0
       MUTE 0 0
       SEL 0
       IGUID {FF8D3312-FC37-4B90-A2F8-E79780683652}
@@ -187,6 +230,50 @@
       GUID {0EF3F5CC-4D65-4829-8FC8-E7BF331B6E84}
       <SOURCE WAVE
         FILE "C:\res\Sonniss.com - GDC 2016- Game Audio Bundle\Digital Rain Lab - Lethal Energies\CK_Blaster_Shot-226.wav"
+      >
+    >
+    <ITEM
+      POSITION 2.5
+      SNAPOFFS 0
+      LENGTH 0.5
+      LOOP 1
+      ALLTAKES 0
+      FADEIN 1 0 0 1 0 0 0
+      FADEOUT 1 0.01 0 1 0 0 0
+      MUTE 0 0
+      SEL 0
+      IGUID {7E63C7A3-5502-4461-BBC1-C643C92E3FF4}
+      IID 12
+      NAME "Potato Gun Shot Apples Heavy Blast AB.wav"
+      VOLPAN 1 0 1 -1
+      SOFFS 0
+      PLAYRATE 1 1 0 -1 0 0.0025
+      CHANMODE 0
+      GUID {28BCB0AC-5EAA-49D5-AC87-02E724566FF0}
+      <SOURCE WAVE
+        FILE "Media\Potato Gun Shot Apples Heavy Blast AB.wav"
+      >
+    >
+    <ITEM
+      POSITION 6.5
+      SNAPOFFS 0
+      LENGTH 0.17442176870748
+      LOOP 1
+      ALLTAKES 0
+      FADEIN 1 0 0 1 0 0 0
+      FADEOUT 1 0 0 1 0 0 0
+      MUTE 0 0
+      SEL 0
+      IGUID {056663F2-EE45-40D3-97C5-614CCDEF7CE4}
+      IID 25
+      NAME retro_collect_pickup_coin_03.wav
+      VOLPAN 1 0 1 -1
+      SOFFS 0
+      PLAYRATE 1 1 0 -1 0 0.0025
+      CHANMODE 0
+      GUID {5B45B31B-6D35-401B-87D0-0117560B291D}
+      <SOURCE WAVE
+        FILE "Media\retro_collect_pickup_coin_03.wav"
       >
     >
   >
@@ -216,13 +303,13 @@
     MIDIOUT -1
     MAINSEND 1 0
     <ITEM
-      POSITION 193.5
+      POSITION 0.5
       SNAPOFFS 0
-      LENGTH 1.3
+      LENGTH 1
       LOOP 1
       ALLTAKES 0
       FADEIN 1 0 0 1 0 0 0
-      FADEOUT 1 0 0 1 0 0 0
+      FADEOUT 1 0.01 0 1 0 0 0
       MUTE 0 0
       SEL 0
       IGUID {9E9860D6-1B90-48D5-B50E-2AE2ECDB982D}
@@ -235,6 +322,50 @@
       GUID {900583EF-036C-41A1-8A22-B7659A715D1F}
       <SOURCE WAVE
         FILE "C:\res\Sonniss.com - GDC 2018 - Game Audio Bundle\Gamemaster Audio - Sci-Fi Sounds and Sci-Fi Weapons\sci-fi_weapon_blaster_laser_boom_zap_08.wav"
+      >
+    >
+    <ITEM
+      POSITION 2.5
+      SNAPOFFS 0
+      LENGTH 0.5
+      LOOP 1
+      ALLTAKES 0
+      FADEIN 1 0 0 1 0 0 0
+      FADEOUT 1 0.01 0 1 0 0 0
+      MUTE 0 0
+      SEL 0
+      IGUID {5D032ABD-BD3F-4680-B594-0883F018D51F}
+      IID 13
+      NAME "Potato Gun Shot Without Canon MS.wav"
+      VOLPAN 1 0 1 -1
+      SOFFS 0
+      PLAYRATE 1 1 0 -1 0 0.0025
+      CHANMODE 0
+      GUID {65EE3757-E307-495E-B524-DE1CD451E1D7}
+      <SOURCE WAVE
+        FILE "Media\Potato Gun Shot Without Canon MS.wav"
+      >
+    >
+    <ITEM
+      POSITION 6.5
+      SNAPOFFS 0
+      LENGTH 0.4650625
+      LOOP 1
+      ALLTAKES 0
+      FADEIN 1 0 0 1 0 0 0
+      FADEOUT 1 0 0 1 0 0 0
+      MUTE 0 0
+      SEL 0
+      IGUID {3250271B-4145-43D3-8362-212F2EF8BB56}
+      IID 26
+      NAME Coin02.wav
+      VOLPAN 1 0 1 -1
+      SOFFS 0
+      PLAYRATE 1 1 0 -1 0 0.0025
+      CHANMODE 0
+      GUID {0A2DFD3E-3E73-4DDA-A3A8-E7C230142213}
+      <SOURCE WAVE
+        FILE "Media\Coin02.wav"
       >
     >
   >
@@ -264,7 +395,7 @@
     MIDIOUT -1
     MAINSEND 1 0
     <ITEM
-      POSITION 193.5
+      POSITION 0.5
       SNAPOFFS 0
       LENGTH 0.97189583333332
       LOOP 1
@@ -283,6 +414,28 @@
       GUID {54875D0B-0474-401C-B6E9-33B586443609}
       <SOURCE WAVE
         FILE "C:\res\Sonniss.com - GDC 2023 - Game Audio Bundle\Sonic Bat - BB Rifle\SBbbr_Shooting BB Rifle 003.wav"
+      >
+    >
+    <ITEM
+      POSITION 4
+      SNAPOFFS 0
+      LENGTH 1
+      LOOP 1
+      ALLTAKES 0
+      FADEIN 1 0 0 1 0 0 0
+      FADEOUT 1 0.01 0 1 0 0 0
+      MUTE 0 0
+      SEL 0
+      IGUID {1B5B24AD-4547-4521-9B7B-3BF25AF1379B}
+      IID 14
+      NAME "Rifled Flintlock Pistol M1820 - FIRING - Close - MS Decoded - VP88.wav"
+      VOLPAN 1 0 1 -1
+      SOFFS 0
+      PLAYRATE 1 1 0 -1 0 0.0025
+      CHANMODE 0
+      GUID {41F49DF3-24B9-494C-A6DD-4B4C710CB4CB}
+      <SOURCE WAVE
+        FILE "Media\Rifled Flintlock Pistol M1820 - FIRING - Close - MS Decoded - VP88.wav"
       >
     >
   >
@@ -312,13 +465,13 @@
     MIDIOUT -1
     MAINSEND 1 0
     <ITEM
-      POSITION 193
+      POSITION 0
       SNAPOFFS 0
-      LENGTH 2.1
+      LENGTH 1.5
       LOOP 1
       ALLTAKES 0
       FADEIN 1 0 0 1 0 0 0
-      FADEOUT 1 0 0 1 0 0 0
+      FADEOUT 1 0.01 0 1 0 0 0
       MUTE 0 0
       SEL 0
       IGUID {3AD756B3-C2EF-4FB6-9E75-FBB8B07BA8AE}
@@ -331,6 +484,28 @@
       GUID {4D3D0C17-813D-4818-9FC0-F5BF4FFBC431}
       <SOURCE WAVE
         FILE "C:\res\Sonniss.com - GDC 2016- Game Audio Bundle\Digital Rain Lab - Lethal Energies\DS_Heavy_03_NoReverb_Shot-2.wav"
+      >
+    >
+    <ITEM
+      POSITION 2.5
+      SNAPOFFS 0
+      LENGTH 0.5
+      LOOP 1
+      ALLTAKES 0
+      FADEIN 1 0 0 1 0 0 0
+      FADEOUT 1 0.01 0 1 0 0 0
+      MUTE 0 0
+      SEL 0
+      IGUID {0A9CAC76-3C9B-4D05-91AD-57A603165F16}
+      IID 15
+      NAME "hitsound 2.wav"
+      VOLPAN 1 0 1 -1
+      SOFFS 0
+      PLAYRATE 1 1 0 -1 0 0.0025
+      CHANMODE 0
+      GUID {96D83F65-6946-49FE-95BA-9069BE8FA950}
+      <SOURCE WAVE
+        FILE "Media\hitsound 2.wav"
       >
     >
   >

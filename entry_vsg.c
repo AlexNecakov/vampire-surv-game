@@ -926,6 +926,7 @@ int entry(int argc, char **argv) {
                                 get_player()->experience.current += en->power;
                                 en->color = v4(0,0,0,0);
                                 en->is_valid = false;
+                                play_one_audio_clip(fixed_string("res\\sound\\pickup-001.wav"));
                             }
                             break;
                         case ARCH_terrain:
@@ -1024,7 +1025,7 @@ int entry(int argc, char **argv) {
                         for(int i = 0; i < 15; i++){
                             Entity* bullet_en = entity_create();
                             setup_bullet(bullet_en);
-                            play_one_audio_clip(fixed_string("res\\sound\\shot_01.wav"));
+                            play_one_audio_clip(fixed_string("res\\sound\\shot-001.wav"));
                             bullet_en->move_vec = v2_rotate_point_around_pivot(v2(1,0), v2(0,0), get_random_float32_in_range(0,2*PI64)); 
                             bullet_en->pos = v2_add(bullet_en->pos, get_player()->pos);
                         }
