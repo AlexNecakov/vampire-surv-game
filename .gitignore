@@ -1,3 +1,6 @@
+*.repeaks
+reaper/media/
+reaper/backups/
 
 *.raddbgi
 **/worlds
