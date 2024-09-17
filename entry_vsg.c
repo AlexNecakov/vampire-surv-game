@@ -23,6 +23,9 @@ const s32 tile_width = 16;
 bool debug_render;
 Gfx_Font* font;
 
+inline int extract_sign(float a) {
+	return a == 0 ? 0 : (a < 0 ? -1 : 1);
+}
 //:layer
 typedef enum Layer{
     layer_stage_bg = 0,
@@ -89,6 +92,163 @@ bool pct_chance(float pct) {
 	return get_random_float32_in_range(0, 1) < pct;
 }
 
+float float_alpha(float x, float min, float max) {
+	float res = (x-min) / (max-min);
+	res = clamp(res, 0.0, 1.0);
+	return res;
+}
+inline float64 now() {
+	return world->time_elapsed;
+}
+
+float alpha_from_end_time(float64 end_time, float length) {
+	return float_alpha(now(), end_time-length, end_time);
+}
+
+bool has_reached_end_time(float64 end_time) {
+	return now() > end_time;
+}
+
+void camera_shake(float amount) {
+	camera_trauma += amount;
+}
+
+// :particle system
+typedef enum ParticleFlags {
+	PARTICLE_FLAGS_valid = (1<<0),
+	PARTICLE_FLAGS_physics = (1<<1),
+	PARTICLE_FLAGS_friction = (1<<2),
+	PARTICLE_FLAGS_fade_out_with_velocity = (1<<3),
+	// PARTICLE_FLAGS_gravity = (1<<3),
+	// PARTICLE_FLAGS_bounce = (1<<4),
+} ParticleFlags;
+typedef struct Particle {
+	ParticleFlags flags;
+	Vector4 col;
+	Vector2 pos;
+	Vector2 velocity;
+	Vector2 acceleration;
+	float friction;
+	float64 end_time;
+	float fade_out_vel_range;
+} Particle;
+Particle particles[2048] = {0};
+int particle_cursor = 0;
+
+Particle* particle_new() {
+	Particle* p = &particles[particle_cursor];
+	particle_cursor += 1;
+	if (particle_cursor >= ARRAY_COUNT(particles)) {
+		particle_cursor = 0;
+	}
+	if (p->flags & PARTICLE_FLAGS_valid) {
+		log_warning("too many particles, overwriting existing");
+	}
+	p->flags |= PARTICLE_FLAGS_valid;
+	return p;
+}
+void particle_clear(Particle* p) {
+	memset(p, 0, sizeof(Particle));
+}
+void particle_update() {
+	for (int i = 0; i < ARRAY_COUNT(particles); i++) {
+		Particle* p = &particles[i];
+		if (!(p->flags & PARTICLE_FLAGS_valid)) {
+			continue;
+		}
+
+		if (p->end_time && has_reached_end_time(p->end_time)) {
+			particle_clear(p);
+			continue;
+		}
+
+		if (p->flags & PARTICLE_FLAGS_fade_out_with_velocity
+		&& v2_length(p->velocity) < 0.01) {
+			particle_clear(p);
+		}
+
+		if (p->flags & PARTICLE_FLAGS_physics) {
+			if (p->flags & PARTICLE_FLAGS_friction) {
+				p->acceleration = v2_sub(p->acceleration, v2_mulf(p->velocity, p->friction));
+			}
+			p->velocity = v2_add(p->velocity, v2_mulf(p->acceleration, delta_t));
+			Vector2 next_pos = v2_add(p->pos, v2_mulf(p->velocity, delta_t));
+			p->acceleration = (Vector2){0};
+			p->pos = next_pos;
+		}
+	}
+}
+void particle_render() {
+	for (int i = 0; i < ARRAY_COUNT(particles); i++) {
+		Particle* p = &particles[i];
+		if (!(p->flags & PARTICLE_FLAGS_valid)) {
+			continue;
+		}
+
+		Vector4 col = p->col;
+		if (p->flags & PARTICLE_FLAGS_fade_out_with_velocity) {
+			col.a *= float_alpha(fabsf(v2_length(p->velocity)), 0, p->fade_out_vel_range);
+		}
+
+		draw_rect(p->pos, v2(1, 1), col);
+	}
+}
+
+typedef enum ParticleKind {
+	PFX_footstep,
+	PFX_hit,
+	// :particle
+} ParticleKind;
+void particle_emit(Vector2 pos, ParticleKind kind) {
+	switch (kind) {
+		case PFX_footstep: {
+			// ...
+		} break;
+
+		case PFX_hit: {
+			for (int i = 0; i < 4; i++) {
+				Particle* p = particle_new();
+				p->flags |= PARTICLE_FLAGS_physics | PARTICLE_FLAGS_friction | PARTICLE_FLAGS_fade_out_with_velocity;
+				p->pos = pos;
+				p->velocity = v2_normalize(v2(get_random_float32_in_range(-1, 1), get_random_float32_in_range(-1, 1)));
+				p->velocity = v2_mulf(p->velocity, get_random_float32_in_range(200, 200));
+				p->col = COLOR_WHITE;
+				p->friction = 20.0f;
+				p->fade_out_vel_range = 30.0f;
+			}
+		} break;
+	}
+}
+
+// caveman :serialisation™️
+bool world_save_to_disk() {
+	return os_write_entire_file_s(STR("world"), (string){sizeof(World), (u8*)world});
+}
+bool world_attempt_load_from_disk() {
+	string result = {0};
+	bool succ = os_read_entire_file_s(STR("world"), &result, temp_allocator);
+	if (!succ) {
+		log_error("Failed to load world.");
+		return false;
+	}
+
+	// NOTE, for errors I used to do stuff like this assert:
+	// assert(result.count == sizeof(World), "world size has changed!");
+	//
+	// But since shipping to users, I've noticed that it's always better to gracefully fail somehow.
+	// That's why this function returns a bool. We handle that at the callsite.
+	// Maybe we want to just start up a new world, throw a user friendly error, or whatever as a fallback. Not just crash the game lol.
+
+	if (result.count != sizeof(World)) {
+		log_error("world size different to one on disk.");
+		return false;
+	}
+
+	memcpy(world, result.data, result.count);
+	return true;
+}
+
+
 //:sprite
 typedef struct Sprite {
     Gfx_Image* image;
@@ -136,6 +296,11 @@ typedef enum UXState {
 } UXState;
 
 //:entity
+
+
+void entity_apply_defaults(Entity* en) {
+	en->tile_size = v2i(1, 1);
+}
 typedef enum EntityArchetype{
     ARCH_nil = 0,
     ARCH_player,
@@ -782,6 +947,10 @@ int entry(int argc, char **argv) {
             if (is_key_just_pressed(KEY_ESCAPE)){
                 window.should_close = true;
             }
+            if (is_key_just_pressed(KEY_F11)) {
+                consume_key_just_pressed(KEY_F11);
+                window.fullscreen = !window.fullscreen;
+            }
             if (is_key_just_pressed('R')) {
                 reset_world = true;
             }
@@ -946,6 +1115,83 @@ int entry(int argc, char **argv) {
             }
         }
 
+        // :physics update
+		for (int i = 0; i < MAX_ENTITY_COUNT; i++) {
+			Entity* en = &world->entities[i];
+			if (!en->is_valid || !en->has_physics) {
+				continue;
+			}
+
+			Vector2 next_pos = {0};
+			if (en->arch == ARCH_player) {
+				next_pos = v2_add(en->pos, v2_mulf(en->frame.input_axis, 70.0 * delta_t));
+			} else {
+				// https://guide.handmadehero.org/code/day043
+				
+				// "friction"
+				if (!en->disable_friction) {
+					en->acceleration = v2_sub(en->acceleration, v2_mulf(en->velocity, en->friction));
+				}
+				// integrate
+				en->velocity = v2_add(en->velocity, v2_mulf(en->acceleration, delta_t));
+				next_pos = v2_add(en->pos, v2_mulf(en->velocity, delta_t));
+				en->acceleration = (Vector2){0};
+			}
+
+			if (!en->ignore_collision) {
+				Range2f our_bounds = get_entity_collision_bounds(en);
+				our_bounds = range2f_shift(our_bounds, en->pos);
+
+				// resolve collisions
+				// courtesy of chatgpt
+				for (int j = 0; j < growing_array_get_valid_count(collision_entities); j++) {
+					Entity* against = collision_entities[j];
+
+					// Skip self
+					if (against == en) {
+						continue;
+					}
+
+					// Get the collision bounds of the other entity
+					Range2f bounds = range2f_shift(get_entity_collision_bounds(against), against->pos);
+
+					// Get our predicted bounds at next position
+					Range2f next_bounds = range2f_shift(get_entity_collision_bounds(en), next_pos);
+
+					// Check for collision between next_bounds and bounds
+					bool overlap_x = next_bounds.min.x < bounds.max.x && next_bounds.max.x > bounds.min.x;
+					bool overlap_y = next_bounds.min.y < bounds.max.y && next_bounds.max.y > bounds.min.y;
+
+					if (overlap_x && overlap_y) {
+						// Collision detected, resolve it
+
+						// Calculate the penetration distances on both axes
+						float penetration_x1 = bounds.max.x - next_bounds.min.x; // Positive if overlapping from the left
+						float penetration_x2 = next_bounds.max.x - bounds.min.x; // Positive if overlapping from the right
+						float penetration_x = (penetration_x1 < penetration_x2) ? penetration_x1 : -penetration_x2;
+
+						float penetration_y1 = bounds.max.y - next_bounds.min.y; // Positive if overlapping from the bottom
+						float penetration_y2 = next_bounds.max.y - bounds.min.y; // Positive if overlapping from the top
+						float penetration_y = (penetration_y1 < penetration_y2) ? penetration_y1 : -penetration_y2;
+
+						// Resolve collision by moving next_pos out of collision along the axis of least penetration
+						if (fabsf(penetration_x) < fabsf(penetration_y)) {
+							// Resolve along X axis
+							next_pos.x += penetration_x;
+							en->velocity.x = 0;
+						} else {
+							// Resolve along Y axis
+							next_pos.y += penetration_y;
+							en->velocity.y = 0;
+						}
+					}
+				}
+			}
+
+			en->pos = next_pos;
+		}
+
+
 		// :tile rendering
 		{
 		    set_world_space();
@@ -1042,9 +1288,33 @@ int entry(int argc, char **argv) {
             }
         }
 
+		particle_update();
+		particle_render();
         os_update();
         gfx_update();
+		
+        // load/save commands
+		// these are at the bottom, because we'll want to have a clean spot to do this to avoid any mid-way operation bugs.
+		#if CONFIGURATION == DEBUG
+		{
+			if (is_key_just_pressed('F')) {
+				world_save_to_disk();
+				log("saved");
+			}
+			if (is_key_just_pressed('L')) {
+				world_attempt_load_from_disk();
+				log("loaded ");
+			}
+			if (is_key_just_pressed('K') && is_key_down(KEY_SHIFT)) {
+				memset(world, 0, sizeof(World));
+				world_setup();
+				log("reset");
+			}
+		}
+		#endif
 	}
+	
+    world_save_to_disk();
 
 	return 0;
 }
