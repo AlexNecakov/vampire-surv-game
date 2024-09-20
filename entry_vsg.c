@@ -21,7 +21,7 @@ float exp_error_flash_alpha = 0;
 float exp_error_flash_alpha_target = 0;
 float camera_trauma = 0;
 Vector2 camera_pos = {0};
-float max_cam_shake_translate = 200.0f;
+float max_cam_shake_translate = 3.0f;
 float max_cam_shake_rotate = 4.0f;
 
 float64 delta_t;
@@ -174,6 +174,7 @@ typedef struct Entity{
     Bar health;
     float power;
     float move_speed;
+    float end_time;
     Bar experience;
 } Entity;
 
@@ -899,7 +900,8 @@ int entry(int argc, char **argv) {
 		{
 			camera_trauma -= delta_t;
 			camera_trauma = clamp_bottom(camera_trauma, 0);
-			float cam_shake = clamp_top(pow(camera_trauma, 3), 1);
+            camera_trauma = clamp_top(camera_trauma, 1);
+			float cam_shake = clamp_top(pow(camera_trauma, 2), 1);
 
 			Vector2 target_pos = get_player()->pos;
 			animate_v2_to_target(&camera_pos, target_pos, 30.0f);
@@ -922,6 +924,8 @@ int entry(int argc, char **argv) {
 
 			// scale the zoom
 			world_frame.world_view = m4_scale(world_frame.world_view, v3(1.0/zoom, 1.0/zoom, 1.0));
+
+            log("trauma %f shake %f", camera_trauma, camera_shake);
 		}
 
         //:input
@@ -1030,8 +1034,8 @@ int entry(int argc, char **argv) {
                                     else if(other_en->arch == ARCH_player){
                                         if(check_entity_collision(en, other_en)){
                                             other_en->health.current -= (en->power * delta_t);
+                                            camera_shake(0.1);
                                         }
-                                        //camera_shake(0.1);
                                     }
                                 }
                             }
