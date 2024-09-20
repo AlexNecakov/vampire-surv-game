@@ -1,19 +1,11 @@
-//constants
-#define MAX_ENTITY_COUNT 10240
-
-#define PI32 3.14159265359f
-#define PI64 3.14159265358979323846
-#define TAU32 (2.0f * PI32)
-#define TAU64 (2.0 * PI64)
-#define RAD_PER_DEG (PI64 / 180.0)
-#define DEG_PER_RAD (180.0 / PI64)
-
-#define to_radians(degrees) ((degrees)*RAD_PER_DEG)
-#define to_degrees(radians) ((radians)*DEG_PER_RAD)
+//:constants
+#define MAX_ENTITY_COUNT 4096 
+#define ARRAY_COUNT(array) (sizeof(array) / sizeof(array[0]))
 
 #define clamp_bottom(a, b) max(a, b)
 #define clamp_top(a, b) min(a, b)
 
+Gfx_Font* font;
 const u32 font_height = 64;
 const float32 font_padding = (float32)font_height/10.0f;
 
@@ -21,25 +13,6 @@ const float32 spriteSheetWidth = 240.0;
 const s32 tile_width = 16;
 
 bool debug_render;
-Gfx_Font* font;
-
-inline int extract_sign(float a) {
-	return a == 0 ? 0 : (a < 0 ? -1 : 1);
-}
-//:layer
-typedef enum Layer{
-    layer_stage_bg = 0,
-    layer_stage_fg = 5,
-    layer_world = 10,
-    layer_view = 15,
-    layer_entity = 20,
-    layer_ui_bg = 30,
-    layer_ui_fg = 35,
-    layer_text = 40,
-    layer_cursor = 50,
-} Layer;
-
-Vector4 bg_box_col = {0, 0, 1.0, 0.9};
 
 float screen_width = 240.0;
 float screen_height = 135.0;
@@ -51,9 +24,7 @@ Vector2 camera_pos = {0};
 float max_cam_shake_translate = 200.0f;
 float max_cam_shake_rotate = 4.0f;
 
-void camera_shake(float amount) {
-	camera_trauma += amount;
-}
+float64 delta_t;
 
 //:math
 inline float v2_dist(Vector2 a, Vector2 b) {
@@ -79,6 +50,10 @@ bool almost_equals(float a, float b, float epsilon) {
  return fabs(a - b) <= epsilon;
 }
 
+inline int extract_sign(float a) {
+	return a == 0 ? 0 : (a < 0 ? -1 : 1);
+}
+
 bool get_random_bool() {
 	return get_random_int_in_range(0, 1);
 }
@@ -97,157 +72,23 @@ float float_alpha(float x, float min, float max) {
 	res = clamp(res, 0.0, 1.0);
 	return res;
 }
-inline float64 now() {
-	return world->time_elapsed;
-}
-
-float alpha_from_end_time(float64 end_time, float length) {
-	return float_alpha(now(), end_time-length, end_time);
-}
-
-bool has_reached_end_time(float64 end_time) {
-	return now() > end_time;
-}
 
 void camera_shake(float amount) {
 	camera_trauma += amount;
 }
 
-// :particle system
-typedef enum ParticleFlags {
-	PARTICLE_FLAGS_valid = (1<<0),
-	PARTICLE_FLAGS_physics = (1<<1),
-	PARTICLE_FLAGS_friction = (1<<2),
-	PARTICLE_FLAGS_fade_out_with_velocity = (1<<3),
-	// PARTICLE_FLAGS_gravity = (1<<3),
-	// PARTICLE_FLAGS_bounce = (1<<4),
-} ParticleFlags;
-typedef struct Particle {
-	ParticleFlags flags;
-	Vector4 col;
-	Vector2 pos;
-	Vector2 velocity;
-	Vector2 acceleration;
-	float friction;
-	float64 end_time;
-	float fade_out_vel_range;
-} Particle;
-Particle particles[2048] = {0};
-int particle_cursor = 0;
-
-Particle* particle_new() {
-	Particle* p = &particles[particle_cursor];
-	particle_cursor += 1;
-	if (particle_cursor >= ARRAY_COUNT(particles)) {
-		particle_cursor = 0;
-	}
-	if (p->flags & PARTICLE_FLAGS_valid) {
-		log_warning("too many particles, overwriting existing");
-	}
-	p->flags |= PARTICLE_FLAGS_valid;
-	return p;
-}
-void particle_clear(Particle* p) {
-	memset(p, 0, sizeof(Particle));
-}
-void particle_update() {
-	for (int i = 0; i < ARRAY_COUNT(particles); i++) {
-		Particle* p = &particles[i];
-		if (!(p->flags & PARTICLE_FLAGS_valid)) {
-			continue;
-		}
-
-		if (p->end_time && has_reached_end_time(p->end_time)) {
-			particle_clear(p);
-			continue;
-		}
-
-		if (p->flags & PARTICLE_FLAGS_fade_out_with_velocity
-		&& v2_length(p->velocity) < 0.01) {
-			particle_clear(p);
-		}
-
-		if (p->flags & PARTICLE_FLAGS_physics) {
-			if (p->flags & PARTICLE_FLAGS_friction) {
-				p->acceleration = v2_sub(p->acceleration, v2_mulf(p->velocity, p->friction));
-			}
-			p->velocity = v2_add(p->velocity, v2_mulf(p->acceleration, delta_t));
-			Vector2 next_pos = v2_add(p->pos, v2_mulf(p->velocity, delta_t));
-			p->acceleration = (Vector2){0};
-			p->pos = next_pos;
-		}
-	}
-}
-void particle_render() {
-	for (int i = 0; i < ARRAY_COUNT(particles); i++) {
-		Particle* p = &particles[i];
-		if (!(p->flags & PARTICLE_FLAGS_valid)) {
-			continue;
-		}
-
-		Vector4 col = p->col;
-		if (p->flags & PARTICLE_FLAGS_fade_out_with_velocity) {
-			col.a *= float_alpha(fabsf(v2_length(p->velocity)), 0, p->fade_out_vel_range);
-		}
-
-		draw_rect(p->pos, v2(1, 1), col);
-	}
-}
-
-typedef enum ParticleKind {
-	PFX_footstep,
-	PFX_hit,
-	// :particle
-} ParticleKind;
-void particle_emit(Vector2 pos, ParticleKind kind) {
-	switch (kind) {
-		case PFX_footstep: {
-			// ...
-		} break;
-
-		case PFX_hit: {
-			for (int i = 0; i < 4; i++) {
-				Particle* p = particle_new();
-				p->flags |= PARTICLE_FLAGS_physics | PARTICLE_FLAGS_friction | PARTICLE_FLAGS_fade_out_with_velocity;
-				p->pos = pos;
-				p->velocity = v2_normalize(v2(get_random_float32_in_range(-1, 1), get_random_float32_in_range(-1, 1)));
-				p->velocity = v2_mulf(p->velocity, get_random_float32_in_range(200, 200));
-				p->col = COLOR_WHITE;
-				p->friction = 20.0f;
-				p->fade_out_vel_range = 30.0f;
-			}
-		} break;
-	}
-}
-
-// caveman :serialisation™️
-bool world_save_to_disk() {
-	return os_write_entire_file_s(STR("world"), (string){sizeof(World), (u8*)world});
-}
-bool world_attempt_load_from_disk() {
-	string result = {0};
-	bool succ = os_read_entire_file_s(STR("world"), &result, temp_allocator);
-	if (!succ) {
-		log_error("Failed to load world.");
-		return false;
-	}
-
-	// NOTE, for errors I used to do stuff like this assert:
-	// assert(result.count == sizeof(World), "world size has changed!");
-	//
-	// But since shipping to users, I've noticed that it's always better to gracefully fail somehow.
-	// That's why this function returns a bool. We handle that at the callsite.
-	// Maybe we want to just start up a new world, throw a user friendly error, or whatever as a fallback. Not just crash the game lol.
-
-	if (result.count != sizeof(World)) {
-		log_error("world size different to one on disk.");
-		return false;
-	}
-
-	memcpy(world, result.data, result.count);
-	return true;
-}
-
+//:layer
+typedef enum Layer{
+    layer_stage_bg = 0,
+    layer_stage_fg = 5,
+    layer_world = 10,
+    layer_view = 15,
+    layer_entity = 20,
+    layer_ui_bg = 30,
+    layer_ui_fg = 35,
+    layer_text = 40,
+    layer_cursor = 50,
+} Layer;
 
 //:sprite
 typedef struct Sprite {
@@ -296,11 +137,6 @@ typedef enum UXState {
 } UXState;
 
 //:entity
-
-
-void entity_apply_defaults(Entity* en) {
-	en->tile_size = v2i(1, 1);
-}
 typedef enum EntityArchetype{
     ARCH_nil = 0,
     ARCH_player,
@@ -341,10 +177,14 @@ typedef struct Entity{
     Bar experience;
 } Entity;
 
+void entity_apply_defaults(Entity* en) {
+}
+
 Vector2 get_entity_midpoint(Entity* en){
     return v2(en->pos.x + en->size.x/2.0, en->pos.y + en->size.y/2.0);
 }
 
+//:collision
 Vector2 get_line_endpoint(Vector2 origin, float r, float radians){
     Vector2 endpoint = v2_add(origin, v2(r, 0));
     endpoint = v2_rotate_point_around_pivot(endpoint, origin, radians);
@@ -368,10 +208,8 @@ Vector3 get_line_intersection(Vector2 v1_start, Vector2 v1_end, Vector2 v2_start
         // z value is bool intersection found
         return v3(0,0,0);
     }
-
 }
 
-//:collision
 bool check_entity_collision(Entity* en_1, Entity* en_2){
     bool collision_detected = false;
     if(en_1->is_valid && en_2 -> is_valid){
@@ -464,7 +302,7 @@ bool check_entity_collision(Entity* en_1, Entity* en_2){
     return collision_detected;
 }
 
-bool check_entity_will_collide(Entity* en_1, Entity* en_2, float64 delta_t){
+bool check_entity_will_collide(Entity* en_1, Entity* en_2){
     bool collision_detected = false;
 
     //check next frame based on current move vecs
@@ -478,7 +316,7 @@ bool check_entity_will_collide(Entity* en_1, Entity* en_2, float64 delta_t){
     return collision_detected;
 }
 
-void solid_entity_collision(Entity* en_1, Entity* en_2, float64 delta_t){
+void solid_entity_collision(Entity* en_1, Entity* en_2){
     // repel out of other entity if dynamic solid
     if(check_entity_collision(en_1, en_2)){
         Vector2 en_to_en_vec = v2_sub(get_entity_midpoint(en_1), get_entity_midpoint(en_2));
@@ -490,12 +328,12 @@ void solid_entity_collision(Entity* en_1, Entity* en_2, float64 delta_t){
     Vector2 temp_vec_1 = en_1->move_vec;
 
     en_1->move_vec = v2_normalize(v2(temp_vec_1.x, 0));
-    if(check_entity_will_collide(en_1, en_2, delta_t)){
+    if(check_entity_will_collide(en_1, en_2)){
         temp_vec_1.x = 0;
     }
 
     en_1->move_vec = v2_normalize(v2(0, temp_vec_1.y));
-    if(check_entity_will_collide(en_1, en_2, delta_t)){
+    if(check_entity_will_collide(en_1, en_2)){
         temp_vec_1.y = 0;
     }
 
@@ -539,16 +377,43 @@ bool check_ray_collision(Vector2 ray, Entity* en_1, Entity* en_2){
     return collision_detected;
 }
 
-
-
 //:world
 typedef struct World{
 	Entity entities[MAX_ENTITY_COUNT];
 	UXState ux_state;
-    float64 timer;
+    float64 time_elapsed;
 } World;
 World* world = 0;
 
+//:serialisation
+bool world_save_to_disk() {
+	return os_write_entire_file_s(STR("world"), (string){sizeof(World), (u8*)world});
+}
+bool world_attempt_load_from_disk() {
+	string result = {0};
+	bool succ = os_read_entire_file_s(STR("world"), &result, temp_allocator);
+	if (!succ) {
+		log_error("Failed to load world.");
+		return false;
+	}
+
+	// NOTE, for errors I used to do stuff like this assert:
+	// assert(result.count == sizeof(World), "world size has changed!");
+	//
+	// But since shipping to users, I've noticed that it's always better to gracefully fail somehow.
+	// That's why this function returns a bool. We handle that at the callsite.
+	// Maybe we want to just start up a new world, throw a user friendly error, or whatever as a fallback. Not just crash the game lol.
+
+	if (result.count != sizeof(World)) {
+		log_error("world size different to one on disk.");
+		return false;
+	}
+
+	memcpy(world, result.data, result.count);
+	return true;
+}
+
+//:frame
 typedef struct WorldFrame {
 	Entity* selected_entity;
 	Matrix4 world_proj;
@@ -561,6 +426,7 @@ Entity* get_player() {
 	return world_frame.player;
 }
 
+//:setup
 Entity* entity_create() {
     Entity* entity_found = 0;
     for (int i = 0; i < MAX_ENTITY_COUNT; i++){
@@ -652,7 +518,7 @@ void setup_wall(Entity* en, Vector2 size) {
 void setup_world(){
     
     world->ux_state = UX_default;
-    world->timer = 0;
+    world->time_elapsed = 0;
 
     Entity* player_en = entity_create();
     setup_player(player_en);
@@ -703,7 +569,6 @@ void render_rect_entity(Entity* en){
         draw_rect_xform(xform, en->size, en->color);
     }
 }
-
 
 void render_line_entity(Entity* en){
     if(en->is_valid){
@@ -818,7 +683,7 @@ Draw_Quad ndc_quad_to_screen_quad(Draw_Quad ndc_quad) {
 }
 
 //:animate
-bool animate_f32_to_target(float* value, float target, float delta_t, float rate) {
+bool animate_f32_to_target(float* value, float target, float rate) {
 	*value += (target - *value) * (1.0 - pow(2.0f, -rate * delta_t));
 	if (almost_equals(*value, target, 0.001f))
 	{
@@ -828,9 +693,128 @@ bool animate_f32_to_target(float* value, float target, float delta_t, float rate
 	return false;
 }
 
-void animate_v2_to_target(Vector2* value, Vector2 target, float delta_t, float rate) {
-	animate_f32_to_target(&(value->x), target.x, delta_t, rate);
-	animate_f32_to_target(&(value->y), target.y, delta_t, rate);
+void animate_v2_to_target(Vector2* value, Vector2 target, float rate) {
+	animate_f32_to_target(&(value->x), target.x, rate);
+	animate_f32_to_target(&(value->y), target.y, rate);
+}
+
+inline float64 now() {
+	return world->time_elapsed;
+}
+
+float alpha_from_end_time(float64 end_time, float length) {
+	return float_alpha(now(), end_time-length, end_time);
+}
+
+bool has_reached_end_time(float64 end_time) {
+	return now() > end_time;
+}
+
+// :particle system
+typedef enum ParticleFlags {
+	PARTICLE_FLAGS_valid = (1<<0),
+	PARTICLE_FLAGS_physics = (1<<1),
+	PARTICLE_FLAGS_friction = (1<<2),
+	PARTICLE_FLAGS_fade_out_with_velocity = (1<<3),
+	// PARTICLE_FLAGS_gravity = (1<<3),
+	// PARTICLE_FLAGS_bounce = (1<<4),
+} ParticleFlags;
+typedef struct Particle {
+	ParticleFlags flags;
+	Vector4 col;
+	Vector2 pos;
+	Vector2 velocity;
+	Vector2 acceleration;
+	float friction;
+	float64 end_time;
+	float fade_out_vel_range;
+} Particle;
+Particle particles[2048] = {0};
+int particle_cursor = 0;
+
+Particle* particle_new() {
+	Particle* p = &particles[particle_cursor];
+	particle_cursor += 1;
+	if (particle_cursor >= ARRAY_COUNT(particles)) {
+		particle_cursor = 0;
+	}
+	if (p->flags & PARTICLE_FLAGS_valid) {
+		log_warning("too many particles, overwriting existing");
+	}
+	p->flags |= PARTICLE_FLAGS_valid;
+	return p;
+}
+void particle_clear(Particle* p) {
+	memset(p, 0, sizeof(Particle));
+}
+void particle_update() {
+	for (int i = 0; i < ARRAY_COUNT(particles); i++) {
+		Particle* p = &particles[i];
+		if (!(p->flags & PARTICLE_FLAGS_valid)) {
+			continue;
+		}
+
+		if (p->end_time && has_reached_end_time(p->end_time)) {
+			particle_clear(p);
+			continue;
+		}
+
+		if (p->flags & PARTICLE_FLAGS_fade_out_with_velocity
+		&& v2_length(p->velocity) < 0.01) {
+			particle_clear(p);
+		}
+
+		if (p->flags & PARTICLE_FLAGS_physics) {
+			if (p->flags & PARTICLE_FLAGS_friction) {
+				p->acceleration = v2_sub(p->acceleration, v2_mulf(p->velocity, p->friction));
+			}
+			p->velocity = v2_add(p->velocity, v2_mulf(p->acceleration, delta_t));
+			Vector2 next_pos = v2_add(p->pos, v2_mulf(p->velocity, delta_t));
+			p->acceleration = (Vector2){0};
+			p->pos = next_pos;
+		}
+	}
+}
+void particle_render() {
+	for (int i = 0; i < ARRAY_COUNT(particles); i++) {
+		Particle* p = &particles[i];
+		if (!(p->flags & PARTICLE_FLAGS_valid)) {
+			continue;
+		}
+
+		Vector4 col = p->col;
+		if (p->flags & PARTICLE_FLAGS_fade_out_with_velocity) {
+			col.a *= float_alpha(fabsf(v2_length(p->velocity)), 0, p->fade_out_vel_range);
+		}
+
+		draw_rect(p->pos, v2(1, 1), col);
+	}
+}
+
+typedef enum ParticleKind {
+	PFX_footstep,
+	PFX_hit,
+	// :particle
+} ParticleKind;
+void particle_emit(Vector2 pos, ParticleKind kind) {
+	switch (kind) {
+		case PFX_footstep: {
+			// ...
+		} break;
+
+		case PFX_hit: {
+			for (int i = 0; i < 4; i++) {
+				Particle* p = particle_new();
+				p->flags |= PARTICLE_FLAGS_physics | PARTICLE_FLAGS_friction | PARTICLE_FLAGS_fade_out_with_velocity;
+				p->pos = pos;
+				p->velocity = v2_normalize(v2(get_random_float32_in_range(-1, 1), get_random_float32_in_range(-1, 1)));
+				p->velocity = v2_mulf(p->velocity, get_random_float32_in_range(200, 200));
+				p->col = COLOR_WHITE;
+				p->friction = 20.0f;
+				p->fade_out_vel_range = 30.0f;
+			}
+		} break;
+	}
 }
 
 //:entry
@@ -887,7 +871,7 @@ int entry(int argc, char **argv) {
 
 		world_frame = (WorldFrame){0};
         float64 now = os_get_elapsed_seconds();
-		float64 delta_t = now - last_time;
+		delta_t = now - last_time;
 		last_time = now;	
 	
         float zoom = 5.3;
@@ -913,13 +897,12 @@ int entry(int argc, char **argv) {
 
         // :camera
 		{
-			// camera shake - https://www.youtube.com/watch?v=tu-Qe66AvtY
 			camera_trauma -= delta_t;
 			camera_trauma = clamp_bottom(camera_trauma, 0);
 			float cam_shake = clamp_top(pow(camera_trauma, 3), 1);
 
 			Vector2 target_pos = get_player()->pos;
-			animate_v2_to_target(&camera_pos, target_pos, delta_t, 30.0f);
+			animate_v2_to_target(&camera_pos, target_pos, 30.0f);
 
 			world_frame.world_view = m4_identity();
 
@@ -1042,12 +1025,13 @@ int entry(int argc, char **argv) {
                                 Entity* other_en = &world->entities[j];
                                 if(i != j){
                                     if(other_en->arch == ARCH_monster){
-                                        solid_entity_collision(en, other_en, delta_t);
+                                        solid_entity_collision(en, other_en);
                                     }
                                     else if(other_en->arch == ARCH_player){
                                         if(check_entity_collision(en, other_en)){
                                             other_en->health.current -= (en->power * delta_t);
                                         }
+                                        //camera_shake(0.1);
                                     }
                                 }
                             }
@@ -1115,83 +1099,6 @@ int entry(int argc, char **argv) {
             }
         }
 
-        // :physics update
-		for (int i = 0; i < MAX_ENTITY_COUNT; i++) {
-			Entity* en = &world->entities[i];
-			if (!en->is_valid || !en->has_physics) {
-				continue;
-			}
-
-			Vector2 next_pos = {0};
-			if (en->arch == ARCH_player) {
-				next_pos = v2_add(en->pos, v2_mulf(en->frame.input_axis, 70.0 * delta_t));
-			} else {
-				// https://guide.handmadehero.org/code/day043
-				
-				// "friction"
-				if (!en->disable_friction) {
-					en->acceleration = v2_sub(en->acceleration, v2_mulf(en->velocity, en->friction));
-				}
-				// integrate
-				en->velocity = v2_add(en->velocity, v2_mulf(en->acceleration, delta_t));
-				next_pos = v2_add(en->pos, v2_mulf(en->velocity, delta_t));
-				en->acceleration = (Vector2){0};
-			}
-
-			if (!en->ignore_collision) {
-				Range2f our_bounds = get_entity_collision_bounds(en);
-				our_bounds = range2f_shift(our_bounds, en->pos);
-
-				// resolve collisions
-				// courtesy of chatgpt
-				for (int j = 0; j < growing_array_get_valid_count(collision_entities); j++) {
-					Entity* against = collision_entities[j];
-
-					// Skip self
-					if (against == en) {
-						continue;
-					}
-
-					// Get the collision bounds of the other entity
-					Range2f bounds = range2f_shift(get_entity_collision_bounds(against), against->pos);
-
-					// Get our predicted bounds at next position
-					Range2f next_bounds = range2f_shift(get_entity_collision_bounds(en), next_pos);
-
-					// Check for collision between next_bounds and bounds
-					bool overlap_x = next_bounds.min.x < bounds.max.x && next_bounds.max.x > bounds.min.x;
-					bool overlap_y = next_bounds.min.y < bounds.max.y && next_bounds.max.y > bounds.min.y;
-
-					if (overlap_x && overlap_y) {
-						// Collision detected, resolve it
-
-						// Calculate the penetration distances on both axes
-						float penetration_x1 = bounds.max.x - next_bounds.min.x; // Positive if overlapping from the left
-						float penetration_x2 = next_bounds.max.x - bounds.min.x; // Positive if overlapping from the right
-						float penetration_x = (penetration_x1 < penetration_x2) ? penetration_x1 : -penetration_x2;
-
-						float penetration_y1 = bounds.max.y - next_bounds.min.y; // Positive if overlapping from the bottom
-						float penetration_y2 = next_bounds.max.y - bounds.min.y; // Positive if overlapping from the top
-						float penetration_y = (penetration_y1 < penetration_y2) ? penetration_y1 : -penetration_y2;
-
-						// Resolve collision by moving next_pos out of collision along the axis of least penetration
-						if (fabsf(penetration_x) < fabsf(penetration_y)) {
-							// Resolve along X axis
-							next_pos.x += penetration_x;
-							en->velocity.x = 0;
-						} else {
-							// Resolve along Y axis
-							next_pos.y += penetration_y;
-							en->velocity.y = 0;
-						}
-					}
-				}
-			}
-
-			en->pos = next_pos;
-		}
-
-
 		// :tile rendering
 		{
 		    set_world_space();
@@ -1253,7 +1160,7 @@ int entry(int argc, char **argv) {
             {
                 seconds_counter += delta_t;
                 if(world->ux_state != UX_win && world->ux_state != UX_lose){
-                    world->timer += delta_t;
+                    world->time_elapsed += delta_t;
                 }
                 frame_count+=1;
                 if(seconds_counter > 1.0){
@@ -1279,7 +1186,7 @@ int entry(int argc, char **argv) {
 
                 }
                 string text = STR("fps: %i time: %.2f");
-                text = sprint(temp_allocator, text, last_fps, world->timer);
+                text = sprint(temp_allocator, text, last_fps, world->time_elapsed);
                 set_screen_space();
                 push_z_layer(layer_text);
                 Matrix4 xform = m4_scalar(1.0);
@@ -1307,7 +1214,7 @@ int entry(int argc, char **argv) {
 			}
 			if (is_key_just_pressed('K') && is_key_down(KEY_SHIFT)) {
 				memset(world, 0, sizeof(World));
-				world_setup();
+				setup_world();
 				log("reset");
 			}
 		}
