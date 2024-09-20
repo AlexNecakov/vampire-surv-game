@@ -925,7 +925,7 @@ int entry(int argc, char **argv) {
 			// scale the zoom
 			world_frame.world_view = m4_scale(world_frame.world_view, v3(1.0/zoom, 1.0/zoom, 1.0));
 
-            log("trauma %f shake %f", camera_trauma, camera_shake);
+            //log("trauma %f shake %f", camera_trauma, camera_shake);
 		}
 
         //:input
@@ -1078,13 +1078,20 @@ int entry(int argc, char **argv) {
                         case ARCH_pickup:
 		                    set_world_space();
                             push_z_layer(layer_entity);
-                            render_sprite_entity(en);
+                            en->move_vec = v2_sub(get_entity_midpoint(get_player()), get_entity_midpoint(en));
+                            en->move_vec = v2_normalize(en->move_vec);
+
+                            if(fabsf(v2_dist(get_entity_midpoint(en), get_entity_midpoint(get_player()))) < tile_width * 2.0){
+                                en->move_speed = 165;
+                            }
                             if(check_entity_collision(en, get_player())){
                                 get_player()->experience.current += en->power;
                                 en->color = v4(0,0,0,0);
                                 en->is_valid = false;
                                 play_one_audio_clip(fixed_string("res\\sound\\pickup-001.wav"));
                             }
+                            en->pos = v2_add(en->pos, v2_mulf(en->move_vec, en->move_speed * delta_t));
+                            render_sprite_entity(en);
                             break;
                         case ARCH_terrain:
 		                    set_world_space();
