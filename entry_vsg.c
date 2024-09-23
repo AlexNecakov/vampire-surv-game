@@ -1,3 +1,5 @@
+#include "oogabooga/oogabooga.c"
+
 //:constants
 #define MAX_ENTITY_COUNT 4096 
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof(array[0]))
@@ -809,10 +811,10 @@ void particle_emit(Vector2 pos, ParticleKind kind) {
 				p->flags |= PARTICLE_FLAGS_physics | PARTICLE_FLAGS_friction | PARTICLE_FLAGS_fade_out_with_velocity;
 				p->pos = pos;
 				p->velocity = v2_normalize(v2(get_random_float32_in_range(-1, 1), get_random_float32_in_range(-1, 1)));
-				p->velocity = v2_mulf(p->velocity, get_random_float32_in_range(200, 200));
-				p->col = COLOR_WHITE;
+				p->velocity = v2_mulf(p->velocity, get_random_float32_in_range(20, 20));
+				p->col = COLOR_RED;
 				p->friction = 20.0f;
-				p->fade_out_vel_range = 30.0f;
+				p->fade_out_vel_range = 20.0f;
 			}
 		} break;
 	}
@@ -1046,6 +1048,7 @@ int entry(int argc, char **argv) {
                             }
 
                             if(en->health.current <= 0){
+					            particle_emit(en->pos, PFX_hit);
                                 en->color = v4(0,0,0,0);
                                 en->is_valid = false;
 
@@ -1109,6 +1112,9 @@ int entry(int argc, char **argv) {
                    
             }
         }
+
+        particle_update();
+        particle_render();
 
 		// :tile rendering
 		{

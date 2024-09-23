@@ -29,8 +29,7 @@ typedef struct Context_Extra {
 #define ENTRY_PROC entry
 
 // Ooga booga needs to be included AFTER configuration and BEFORE the program code
-#include "oogabooga/oogabooga.c"
-
+//#include "oogabooga/oogabooga.c"
 
 //
 // Comment & Uncomment these to swap projects (only include one at a time)
